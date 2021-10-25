@@ -16,6 +16,26 @@ using namespace std;
 #define HEIGHT 240
 
 TextureMap texture = TextureMap("texture.ppm");
+glm::vec3 cameraPos(0.0, 0.0, 4.0);
+float focalLength = 2;
+glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
+							0.0, 1.0, 0.0,
+							0.0, 0.0, 1.0);
+bool orbit = false;
+
+glm::mat3 rotateMatrixX(float angle) {
+	glm::mat3 rotation(1.0, 0.0, 0.0,
+		0.0, cos(angle), sin(angle),
+		0.0, -sin(angle), cos(angle));
+	return rotation;
+}
+
+glm::mat3 rotateMatrixY(float angle) {
+	glm::mat3 rotation(cos(angle), 0.0, sin(angle),
+		0.0, 1.0, 0,
+		-sin(angle), 0.0, cos(angle));
+	return rotation;
+}
 
 // (1, 1) and (3, 3) step 3 = (1,1),(2,2),(3,3)
 std::vector<float> interpolateSingleFloats(float from, float to, int numberofValues) {
@@ -104,6 +124,7 @@ void drawLineColoured(DrawingWindow& window, CanvasPoint from, CanvasPoint to, s
 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale) {
 	glm::vec3 correctedVertices(vertexPosition[0] - cameraPosition[0], vertexPosition[1] - cameraPosition[1], vertexPosition[2]-cameraPosition[2]);
+	correctedVertices = correctedVertices * cameraOrientation;
 	float u = (focalLength * (correctedVertices[0]*-scale / correctedVertices[2]*scale)) + (WIDTH / 2);
 	float v = (focalLength * (correctedVertices[1]*scale / correctedVertices[2]*scale)) + (HEIGHT / 2);
 	return CanvasPoint(round(u), round(v), correctedVertices[2]);
@@ -131,10 +152,10 @@ std::vector<std::vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, Canva
 
 	// Gets x value ranges for 'top' portion of triangle
 	for (int i = p0.y; i < p2.y; i++) {
-		xMins.push_back(top_to_left_edge[i - p0.y][0]);
-		xMaxs.push_back(top_to_right_edge[i - p0.y][0]);
-		xDepthMin.push_back(top_to_left_edge[i - p0.y][2]);
-		xDepthMax.push_back(top_to_right_edge[i - p0.y][2]);
+		xMins.push_back(top_to_left_edge[round(i - p0.y)][0]);
+		xMaxs.push_back(top_to_right_edge[round(i - p0.y)][0]);
+		xDepthMin.push_back(top_to_left_edge[round(i - p0.y)][2]);
+		xDepthMax.push_back(top_to_right_edge[round(i - p0.y)][2]);
 	}
 
 	std::vector<std::vector<float>> left_to_bot = interpolateLineSteps(p1, p3, p3.y - p2.y);
@@ -142,10 +163,10 @@ std::vector<std::vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, Canva
 
 	// Gets x value ranges for 'bottom' portion of triangle
 	for (int i = p2.y; i < p3.y; i++) {
-		xMins.push_back(left_to_bot[i - p2.y][0]);
-		xMaxs.push_back(right_to_bot[i - p2.y][0]);
-		xDepthMin.push_back(left_to_bot[i - p2.y][2]);
-		xDepthMax.push_back(right_to_bot[i - p2.y][2]);
+		xMins.push_back(left_to_bot[round(i - p2.y)][0]);
+		xMaxs.push_back(right_to_bot[round(i - p2.y)][0]);
+		xDepthMin.push_back(left_to_bot[round(i - p2.y)][2]);
+		xDepthMax.push_back(right_to_bot[round(i - p2.y)][2]);
 	}
 	std::vector<std::vector<float>> allXs;
 
@@ -290,8 +311,8 @@ void drawFilledTriangle2(DrawingWindow& window, CanvasTriangle triangle, Colour 
 	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
 	for (int y = sorted[0].y; y < sorted[3].y; y++) {
 		for (int x = round(xRange[y - sorted[0].y][0]); x <= round(xRange[y - sorted[0].y][1]); x++) {
-			float s = 1 / abs(xRange[y - sorted[0].y][2]);
-			if (depthBuffer[x][y] == s) {
+			float s = 1 / (1000 + xRange[y - sorted[0].y][2]); // +1000 ensures negative values are allowed
+			if ((x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) && depthBuffer[x][y] == s) {
 				window.setPixelColour(x, y, newColour);
 			}
 		}
@@ -313,15 +334,13 @@ vector<vector<float>> getModelDepth(DrawingWindow& window, CanvasTriangle triang
 		CanvasPoint t1(xRange[y - sorted[0].y][0], y, xRange[y - sorted[0].y][3]);
 		vector<float> depthPoints = interpolateDepthPoints(t0, t1, round(xRange[y - sorted[0].y][1] - round(xRange[y - sorted[0].y][0])));
 		for (int x = round(xRange[y - sorted[0].y][0]); x < round(xRange[y - sorted[0].y][1]); x++) {
-			float s = 1 / abs(xRange[y - sorted[0].y][2]);
-			if (s > depthBuffer[x][y]) {
+			float s = 1 / (1000 + xRange[y - sorted[0].y][2]);
+			if ((x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) && (s < depthBuffer[x][y] || depthBuffer[x][y] == 0)) { // replaces initialized 0 in buffer no matter what
 				depthBuffer[x][y] = s;
 			}
 		}
 	}
 	return depthBuffer;
-	//Colour white{ 255, 255, 255 };
-	//drawStrokedTriangle(window, triangle, white);
 }
 
 // Given texture map, puts into format where each row corresponds to y value pixels
@@ -458,27 +477,21 @@ CanvasTriangle generateRandomTriangle() {
 	return triangle;
 }
 
+vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
+vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
 
-void pointCloud(DrawingWindow& window, vector<glm::vec3> vertices, glm::vec3 cameraPosition, float focalLength) {
-	for (int i = 0; i < vertices.size(); i++) {
-		CanvasPoint pos = getCanvasIntersectionPoint(cameraPosition, vertices[i], focalLength, 10);
-		uint32_t colour = (255 << 24) + (255 << 16) + (255 << 8) + 255;
-		window.setPixelColour(pos.x, pos.y, colour);
-	}
-}
-
-void wireFrame(DrawingWindow& window, vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength) {
+void render(DrawingWindow& window, vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength) {
 	vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 20);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 20);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 20);
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 10);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 10);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 10);
 		depthBuffer = getModelDepth(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour, depthBuffer);
 	}
 	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 20);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 20);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 20);
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 10);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 10);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 10);
 		drawFilledTriangle2(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour, depthBuffer);
 	}
 }
@@ -492,19 +505,46 @@ void randomFilledTriangle(DrawingWindow& window) {
 	drawFilledTriangle(window, generateRandomTriangle(), Colour{ rand() % 256, rand() % 256, rand() % 256 });
 }
 
+glm::mat3 lookat(glm::vec3 cameraPos, glm::vec3 target = glm::vec3(0,0,0)) {
+	glm::vec3 forward = glm::normalize(cameraPos - target);
+	glm::vec3 right = (glm::cross(glm::vec3(0, 1, 0), forward));
+	glm::vec3 up = (glm::cross(forward, right));
+	glm::mat3 newOrientation(right, up, forward);
+	return newOrientation;
+}
+
+void draw(DrawingWindow& window) {
+	window.clearPixels();
+	//vector<glm::vec3> vectors = unloadobjVertices("cornell-box.obj", 0.17);
+	render(window, triangles, cameraPos, focalLength);
+	if (orbit){
+		cameraPos = cameraPos * rotateMatrixY(0.05);
+		cameraOrientation = lookat(cameraPos);
+	}
+}
+
 void handleEvent(SDL_Event event, DrawingWindow& window) {
 	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_LEFT) std::cout << "LEFT" << std::endl;
-		else if (event.key.keysym.sym == SDLK_RIGHT) std::cout << "RIGHT" << std::endl;
-		else if (event.key.keysym.sym == SDLK_UP) std::cout << "UP" << std::endl;
-		else if (event.key.keysym.sym == SDLK_DOWN) std::cout << "DOWN" << std::endl;
-		else if (event.key.keysym.sym == SDLK_u) {
-			randomStrokedTriangle(window);
-		}
+		if (event.key.keysym.sym == SDLK_LEFT) cameraOrientation = cameraOrientation * rotateMatrixY(0.05);
+		else if (event.key.keysym.sym == SDLK_RIGHT) cameraOrientation = cameraOrientation * rotateMatrixY(-0.05);
+		else if (event.key.keysym.sym == SDLK_UP) cameraOrientation = cameraOrientation * rotateMatrixX(0.05);
+		else if (event.key.keysym.sym == SDLK_DOWN) cameraOrientation = cameraOrientation * rotateMatrixX(-0.05);
 
-		else if (event.key.keysym.sym == SDLK_j) {
-			randomFilledTriangle(window);
-		}
+		else if (event.key.keysym.sym == SDLK_w) cameraPos[1] -= 0.05;
+		else if (event.key.keysym.sym == SDLK_a) cameraPos[0] += 0.05;
+		else if (event.key.keysym.sym == SDLK_s) cameraPos[1] += 0.05;
+		else if (event.key.keysym.sym == SDLK_d) cameraPos[0] -= 0.05;
+
+		else if (event.key.keysym.sym == SDLK_EQUALS) cameraPos[2] -= 0.05;
+		else if (event.key.keysym.sym == SDLK_MINUS) cameraPos[2] += 0.05;
+
+		else if (event.key.keysym.sym == SDLK_o) orbit = !orbit;
+
+		else if (event.key.keysym.sym == SDLK_l) cameraOrientation = lookat(cameraPos);
+
+		else if (event.key.keysym.sym == SDLK_u) randomStrokedTriangle(window);
+
+		else if (event.key.keysym.sym == SDLK_j) randomFilledTriangle(window);
 
 	}
 	else if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -513,28 +553,14 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 	}
 }
 
-
 int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-	CanvasPoint p0(51, 270);
-	CanvasPoint p1(272, 270);
-	CanvasPoint p2(272, 50);
-	CanvasTriangle t(p0, p1, p2);
-
-	//drawFilledTriangle(window, t, Colour(255, 255, 255));
-
-	vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
-	vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
-	vector<glm::vec3> vectors = unloadobjVertices("cornell-box.obj", 0.17);
-	glm::vec3 cameraPos(0.0, 0.0, 4.0);
-	wireFrame(window, triangles, cameraPos, 2);
-
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		//draw(window);
+		draw(window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
