@@ -22,6 +22,22 @@ glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
+vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
+
+// Generates a triangle with random vertices in the form CanvasTriangle
+CanvasTriangle generateRandomTriangle() {
+	std::vector<float> widths;  // avoids casting when initializing structures
+	std::vector<float> heights;
+	for (int i = 0; i < 3; i++) {
+		widths.push_back(rand() % WIDTH);
+		heights.push_back(rand() % HEIGHT);
+	}
+	CanvasTriangle triangle{ CanvasPoint{widths[0], heights[0]},
+							 CanvasPoint{widths[1], heights[1]},
+							 CanvasPoint{widths[2], heights[2]} };
+
+	return triangle;
+}
 
 glm::mat3 rotateMatrixX(float angle) {
 	glm::mat3 rotation(1.0, 0.0, 0.0,
@@ -37,6 +53,12 @@ glm::mat3 rotateMatrixY(float angle) {
 	return rotation;
 }
 
+// Convert a colour to uint32_t
+uint32_t convertColour(Colour colour) {
+	uint32_t c = (255 << 24) + (colour.red << 16) + (colour.green << 8) + colour.blue;
+	return c;
+}
+
 // (1, 1) and (3, 3) step 3 = (1,1),(2,2),(3,3)
 std::vector<float> interpolateSingleFloats(float from, float to, int numberofValues) {
 	std::vector<float> v;
@@ -45,11 +67,6 @@ std::vector<float> interpolateSingleFloats(float from, float to, int numberofVal
 		v.push_back(from + (i * difference));
 	}
 	return v;
-}
-
-uint32_t convertColour(Colour colour) {
-	uint32_t c = (255 << 24) + (colour.red << 16) + (colour.green << 8) + colour.blue;
-	return c;
 }
 
 // same as above function but evaluates 3 values instead of 2, e.g. (1,1,1) to (3,3,3) 
@@ -88,55 +105,13 @@ std::vector<std::vector<float>> interpolateLineSteps(CanvasPoint from, CanvasPoi
 	return v;
 }
 
-std::vector<float> interpolateDepthPoints(CanvasPoint point1, CanvasPoint point2, float steps) {
-	std::vector<float> result;
-	point1.depth = 1 / point1.depth;
-	point2.depth = 1 / point2.depth;
-
-	float gap = (point1.depth - point2.depth) / (steps - 1);
-	for (int i = 0; i < steps; i++) {
-		float newDepth = -(point2.depth + gap * i);
-		result.push_back(newDepth);
-	}
-	return result;
-}
-
-void drawLine(DrawingWindow& window, CanvasPoint to, CanvasPoint from, uint32_t colour) {
-	float steps = std::max(abs(to.x - from.x), abs(to.x - from.x));
-	float xSteps = to.x - from.x / steps;
-	float ySteps = to.x - from.x / steps;
-	for (float i = 0.0; i < steps; i++) {
-		float x = from.x + (xSteps * i);
-		float y = from.y + (ySteps * i);
-		window.setPixelColour(round(x), round(y), colour);
-	}
-}
-
-// Draws colored line given a pixel for each step of the line
-void drawLineColoured(DrawingWindow& window, CanvasPoint from, CanvasPoint to, std::vector<uint32_t> colours, int steps) {
-	std::vector<std::vector<float>> coords = interpolateLineSteps(from, to, steps);
-	std::vector<float> colourStep = interpolateSingleFloats(0, colours.size(), coords.size());
-	for (int i = 0; i < coords.size(); i++) {
-		int index = round(colourStep[i]);
-		if (index < colours.size()) { window.setPixelColour(round(coords[i][0]), round(coords[i][1]), colours[index]); }
-	}
-}
-
+// Finds equivalent vertex point on window 
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale) {
-	glm::vec3 correctedVertices(vertexPosition[0] - cameraPosition[0], vertexPosition[1] - cameraPosition[1], vertexPosition[2]-cameraPosition[2]);
+	glm::vec3 correctedVertices = vertexPosition - cameraPosition;
 	correctedVertices = correctedVertices * cameraOrientation;
 	float u = (focalLength * (correctedVertices[0]*-scale / correctedVertices[2]*scale)) + (WIDTH / 2);
 	float v = (focalLength * (correctedVertices[1]*scale / correctedVertices[2]*scale)) + (HEIGHT / 2);
 	return CanvasPoint(round(u), round(v), correctedVertices[2]);
-}
-
-
-// Draws a triangle with only an outline
-void drawStrokedTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
-	uint32_t newColour = convertColour(colour);
-	drawLine(window, triangle.v0(), triangle.v1(), newColour);
-	drawLine(window, triangle.v0(), triangle.v2(), newColour);
-	drawLine(window, triangle.v1(), triangle.v2(), newColour);
 }
 
 // designates maximum and minimum x values spanning all y values in a triangle
@@ -238,7 +213,10 @@ std::vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint 
 
 	// Gets vertex opposite of middle corner
 	for (int i = 0; i < longEdge.size(); i++) {
-		if (longEdge[i][1] == sorted[1].y) { sorted[3].x = longEdge[i][0]; }
+		if (longEdge[i][1] == sorted[1].y) { 
+			sorted[3].x = longEdge[i][0];
+			sorted[3].depth = longEdge[i][2];
+		}
 	}
 
 	// Leftmost point deemed by sorted[1], rightmost deemed by sorted[2]
@@ -284,72 +262,13 @@ std::vector<CanvasPoint> findTexturemid(std::vector<CanvasPoint> sorted) {
 	return sorted;
 }
 
-// Draws a filled triangle using rasterization
-void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
-	// Creates a template structure for storing all points which will be sorted
-	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
-	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
-	uint32_t newColour = convertColour(colour);
-
-	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
-	for (int y = sorted[0].y; y < sorted[3].y; y++) {
-		for (int x = round(xRange[y - sorted[0].y][0]); x <= round(xRange[y - sorted[0].y][1]); x++) {
-			window.setPixelColour(x, y, newColour);
-		}
-	}
-
-	//Colour white{ 255, 255, 255 };
-	//drawStrokedTriangle(window, triangle, white);
-}
-
-void drawFilledTriangle2(DrawingWindow& window, CanvasTriangle triangle, Colour colour, vector<vector<float>> depthBuffer) {
-	// Creates a template structure for storing all points which will be sorted
-	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
-	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
-	uint32_t newColour = convertColour(colour);
-
-	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
-	for (int y = sorted[0].y; y < sorted[3].y; y++) {
-		for (int x = round(xRange[y - sorted[0].y][0]); x <= round(xRange[y - sorted[0].y][1]); x++) {
-			float s = 1 / (1000 + xRange[y - sorted[0].y][2]); // +1000 ensures negative values are allowed
-			if ((x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) && depthBuffer[x][y] == s) {
-				window.setPixelColour(x, y, newColour);
-			}
-		}
-	}
-
-	//Colour white{ 255, 255, 255 };
-	//drawStrokedTriangle(window, triangle, white);
-}
-
-// Draws a filled triangle using rasterization
-vector<vector<float>> getModelDepth(DrawingWindow& window, CanvasTriangle triangle, Colour colour, vector<vector<float>> depthBuffer) {
-	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
-	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
-	uint32_t newColour = convertColour(colour);
-
-	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
-	for (int y = sorted[0].y; y < sorted[3].y; y++) {
-		CanvasPoint t0(xRange[y - sorted[0].y][0], y, xRange[y - sorted[0].y][2]);
-		CanvasPoint t1(xRange[y - sorted[0].y][0], y, xRange[y - sorted[0].y][3]);
-		vector<float> depthPoints = interpolateDepthPoints(t0, t1, round(xRange[y - sorted[0].y][1] - round(xRange[y - sorted[0].y][0])));
-		for (int x = round(xRange[y - sorted[0].y][0]); x < round(xRange[y - sorted[0].y][1]); x++) {
-			float s = 1 / (1000 + xRange[y - sorted[0].y][2]);
-			if ((x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) && (s < depthBuffer[x][y] || depthBuffer[x][y] == 0)) { // replaces initialized 0 in buffer no matter what
-				depthBuffer[x][y] = s;
-			}
-		}
-	}
-	return depthBuffer;
-}
-
 // Given texture map, puts into format where each row corresponds to y value pixels
 std::vector<std::vector<uint32_t>> unloadTexture(TextureMap texture) {
 	std::vector<std::vector<uint32_t>> sortedTexture;
 	std::vector<uint32_t> currentRow;
 	for (int i = 0; i < texture.height; i++) {
 		for (int j = 0; j < texture.width; j++) {
-			currentRow.push_back(texture.pixels[j+(texture.width*i)]);
+			currentRow.push_back(texture.pixels[j + (texture.width * i)]);
 		}
 		sortedTexture.push_back(currentRow);
 		currentRow.clear();
@@ -372,7 +291,7 @@ std::vector<uint32_t> getColourMap(std::vector<float> t0, std::vector<float> t1,
 // Given a colour name will return the equivalent Colour class, white (with name Unknown) if not found
 Colour getColour(string colour, vector<Colour> colourVec) {
 	for (int i = 0; i < colourVec.size(); i++) {
-		if (colourVec[i].name == colour) {return colourVec[i];}
+		if (colourVec[i].name == colour) { return colourVec[i]; }
 	}
 	return Colour("Unknown", 0, 0, 0);
 }
@@ -389,13 +308,14 @@ vector<ModelTriangle> unloadobjFile(string fileName, float scalingFactor, vector
 		vector<string> currentLine = split(line, ' ');
 		if (line[0] == 'u') {
 			colour = getColour(currentLine[1], colourVec);
-		} else if (line[0] == 'v') {
+		}
+		else if (line[0] == 'v') {
 			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
 			currentVectors.push_back(lineVector);
 		}
 		else if (line[0] == 'f') {
 			glm::vec3 lineVector(stof(currentLine[1]), stof(currentLine[2]), stof(currentLine[3]));
-			v.push_back(ModelTriangle(currentVectors[lineVector[0]-1], currentVectors[lineVector[1]-1], currentVectors[lineVector[2]-1], colour));
+			v.push_back(ModelTriangle(currentVectors[lineVector[0] - 1], currentVectors[lineVector[1] - 1], currentVectors[lineVector[2] - 1], colour));
 		}
 	}
 	return v;
@@ -437,6 +357,74 @@ vector<Colour> unloadMaterialFile(string fileName) {
 	return c;
 }
 
+// Draws a line from point a to b
+void drawLine(DrawingWindow& window, CanvasPoint to, CanvasPoint from, uint32_t colour) {
+	float steps = std::max(abs(to.x - from.x), abs(to.x - from.x));
+	float xSteps = to.x - from.x / steps;
+	float ySteps = to.x - from.x / steps;
+	for (float i = 0.0; i < steps; i++) {
+		float x = from.x + (xSteps * i);
+		float y = from.y + (ySteps * i);
+		window.setPixelColour(round(x), round(y), colour);
+	}
+}
+
+// Draws colored line given a pixel for each step of the line
+void drawLineColoured(DrawingWindow& window, CanvasPoint from, CanvasPoint to, std::vector<uint32_t> colours, int steps) {
+	std::vector<std::vector<float>> coords = interpolateLineSteps(from, to, steps);
+	std::vector<float> colourStep = interpolateSingleFloats(0, colours.size(), coords.size());
+	for (int i = 0; i < coords.size(); i++) {
+		int index = round(colourStep[i]);
+		if (index < colours.size()) { window.setPixelColour(round(coords[i][0]), round(coords[i][1]), colours[index]); }
+	}
+}
+
+// Draws a filled triangle using rasterization
+void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
+	// Creates a template structure for storing all points which will be sorted
+	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
+	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
+	uint32_t newColour = convertColour(colour);
+
+	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
+	for (int y = sorted[0].y; y < sorted[3].y; y++) {
+		for (int x = round(xRange[y - sorted[0].y][0]); x <= round(xRange[y - sorted[0].y][1]); x++) {
+			window.setPixelColour(x, y, newColour);
+		}
+	}
+
+	//Colour white{ 255, 255, 255 };
+	//drawStrokedTriangle(window, triangle, white);
+}
+
+void drawFilledTriangle2(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
+	// Creates a template structure for storing all points which will be sorted
+	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
+	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
+
+	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
+	for (int y = sorted[0].y; y < sorted[3].y; y++) {
+		float first = xRange[y - sorted[0].y][0]; // beginning of x range
+		float second = xRange[y - sorted[0].y][1]; // end of x range
+		std::vector<float> depthPoints = interpolateSingleFloats(xRange[y - sorted[0].y][2], xRange[y - sorted[0].y][3], second - first+1);
+		for (int x = first; x <= second; x++) {
+			float s = 1 / abs(depthPoints[x - first]);
+			if ((x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) && s > depthBuffer[x][y]) {
+				window.setPixelColour(x, y, convertColour(colour));
+				depthBuffer[x][y] = s;
+			}
+		}
+	}
+}
+
+// Draws a triangle with only an outline
+void drawStrokedTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
+	uint32_t newColour = convertColour(colour);
+	drawLine(window, triangle.v0(), triangle.v1(), newColour);
+	drawLine(window, triangle.v0(), triangle.v2(), newColour);
+	drawLine(window, triangle.v1(), triangle.v2(), newColour);
+}
+
 // Draws a triangle filled in with a texture
 void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, TextureMap texture) {
 	std::vector<std::vector<uint32_t>> sortedTexture = unloadTexture(texture);
@@ -462,40 +450,6 @@ void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, Textur
 	drawStrokedTriangle(window, triangle, white);
 }
 
-// Generates a triangle with random vertices in the form CanvasTriangle
-CanvasTriangle generateRandomTriangle() {
-	std::vector<float> widths;  // avoids casting when initializing structures
-	std::vector<float> heights;
-	for (int i = 0; i < 3; i++) {
-		widths.push_back(rand() % WIDTH);
-		heights.push_back(rand() % HEIGHT);
-	}
-	CanvasTriangle triangle{ CanvasPoint{widths[0], heights[0]},
-							 CanvasPoint{widths[1], heights[1]},
-							 CanvasPoint{widths[2], heights[2]} };
-
-	return triangle;
-}
-
-vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
-vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
-
-void render(DrawingWindow& window, vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength) {
-	vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
-	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 10);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 10);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 10);
-		depthBuffer = getModelDepth(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour, depthBuffer);
-	}
-	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 10);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 10);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 10);
-		drawFilledTriangle2(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour, depthBuffer);
-	}
-}
-
 // Generates a random triangle with just an outline
 void randomStrokedTriangle(DrawingWindow& window) {
 	drawStrokedTriangle(window, generateRandomTriangle(), Colour{ rand() % 256, rand() % 256, rand() % 256 });
@@ -503,6 +457,19 @@ void randomStrokedTriangle(DrawingWindow& window) {
 
 void randomFilledTriangle(DrawingWindow& window) {
 	drawFilledTriangle(window, generateRandomTriangle(), Colour{ rand() % 256, rand() % 256, rand() % 256 });
+}
+
+vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
+vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
+
+void render(DrawingWindow& window, vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength) {
+	for (int i = 0; i < triangles.size(); i++) {
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 20);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 20);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 20);
+		drawFilledTriangle2(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
+	}
+	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
 }
 
 glm::mat3 lookat(glm::vec3 cameraPos, glm::vec3 target = glm::vec3(0,0,0)) {
