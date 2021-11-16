@@ -5,10 +5,12 @@
 #include <vector>
 #include <algorithm>
 #include <glm/glm.hpp>
+#include <glm/ext.hpp>
 #include <CanvasPoint.h>
 #include <Colour.h>
 #include <TextureMap.h>
 #include <ModelTriangle.h>
+#include <RayTriangleIntersection.h>
 
 using namespace std;
 
@@ -18,11 +20,85 @@ using namespace std;
 TextureMap texture = TextureMap("texture.ppm");
 glm::vec3 cameraPos(0.0, 0.0, 4.0);
 float focalLength = 2;
+int renderMode = 1;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
+glm::vec3 light(0.0, 0.40, 0);
 vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
+
+// Given a colour name will return the equivalent Colour class, white (with name Unknown) if not found
+Colour getColour(string colour, vector<Colour> colourVec) {
+	for (int i = 0; i < colourVec.size(); i++) {
+		if (colourVec[i].name == colour) { return colourVec[i]; }
+	}
+	return Colour("Unknown", 0, 0, 0);
+}
+
+// Unloads a .obj file and stores the models in a vector
+vector<ModelTriangle> unloadobjFile(string fileName, float scalingFactor, vector<Colour> colourVec) {
+	ifstream file(fileName);
+	string line;
+	vector<ModelTriangle> v;
+	vector<glm::vec3> currentVectors;
+	Colour colour;
+	while (!file.eof()) {
+		getline(file, line);
+		vector<string> currentLine = split(line, ' ');
+		if (line[0] == 'u') {
+			colour = getColour(currentLine[1], colourVec);
+		}
+		else if (line[0] == 'v') {
+			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
+			currentVectors.push_back(lineVector);
+		}
+		else if (line[0] == 'f') {
+			glm::vec3 lineVector(stof(currentLine[1]), stof(currentLine[2]), stof(currentLine[3]));
+			v.push_back(ModelTriangle(currentVectors[lineVector[0] - 1], currentVectors[lineVector[1] - 1], currentVectors[lineVector[2] - 1], colour));
+		}
+	}
+	return v;
+}
+
+// Unloads a .obj file and stores the models in a vector
+vector<glm::vec3> unloadobjVertices(string fileName, float scalingFactor) {
+	ifstream file(fileName);
+	string line;
+	vector<glm::vec3> currentVectors;
+	while (!file.eof()) {
+		getline(file, line);
+		vector<string> currentLine = split(line, ' ');
+		if (line[0] == 'v') {
+			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
+			currentVectors.push_back(lineVector);
+		}
+	}
+	return currentVectors;
+}
+
+// Unloads a .mtl file and stores the relevant colours in a vector
+vector<Colour> unloadMaterialFile(string fileName) {
+	ifstream file(fileName);
+	string line;
+	vector<Colour> c;
+	string name;
+	while (!file.eof()) {
+		getline(file, line);
+		if (line[0] == 'n') {
+			vector<string> currentLine = split(line, ' ');
+			name = currentLine[1];
+		}
+		else if (line[0] == 'K') {
+			vector<string> currentLine = split(line, ' ');
+			c.push_back(Colour(name, round(stof(currentLine[1]) * 255), round(stof(currentLine[2]) * 255), round(stof(currentLine[3]) * 255)));
+		}
+	}
+	return c;
+}
+
+vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
+vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
 
 // Generates a triangle with random vertices in the form CanvasTriangle
 CanvasTriangle generateRandomTriangle() {
@@ -112,6 +188,51 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
 	float u = (focalLength * (correctedVertices[0]*-scale / correctedVertices[2]*scale)) + (WIDTH / 2);
 	float v = (focalLength * (correctedVertices[1]*scale / correctedVertices[2]*scale)) + (HEIGHT / 2);
 	return CanvasPoint(round(u), round(v), correctedVertices[2]);
+}
+
+// Finds closest triangle that intersects 
+RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, int triangleIndex=-1) {
+	RayTriangleIntersection currentClosest;
+	currentClosest.distanceFromCamera = numeric_limits<float>::max();
+
+	for (int i = 0; i < triangles.size(); i++) {
+		glm::vec3 e0 = triangles[i].vertices[1] - triangles[i].vertices[0];
+		glm::vec3 e1 = triangles[i].vertices[2] - triangles[i].vertices[0];
+		glm::vec3 SPVector = source - triangles[i].vertices[0];
+		glm::mat3 DEMatrix(-rayDirection, e0, e1);
+		glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+		float t = possibleSolution[0];
+		float u = possibleSolution[1];
+		float v = possibleSolution[2];
+
+		if ((u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0) {
+			// skips checking for triangle i if triangleIndex is specified
+			if (t < currentClosest.distanceFromCamera && t > 0 && triangleIndex != i) {
+				currentClosest.distanceFromCamera = t;
+				currentClosest.intersectedTriangle = triangles[i];
+				currentClosest.triangleIndex = i;
+				currentClosest.intersectionPoint = glm::vec3(triangles[i].vertices[0]) + (u * e0) + (v * e1);
+			}
+		}
+	}
+	return currentClosest;
+}
+
+// returns black if surface cannot see light
+Colour convertShadow(glm::vec3 light, RayTriangleIntersection surface) {
+	// calculate direction of surface to light source
+	glm::vec3 rayShadowDirection = light - surface.intersectionPoint;
+	rayShadowDirection = glm::normalize(rayShadowDirection);
+
+	// find closest intersection between light source
+	RayTriangleIntersection shadowRay = getClosestIntersection(surface.intersectionPoint, rayShadowDirection, surface.triangleIndex);
+	float distanceToIntersection = glm::distance(shadowRay.intersectionPoint, surface.intersectionPoint);
+	float distanceToLight = glm::distance(light,surface.intersectionPoint);
+
+	// if distance to intersection is closer to surface then colour set triangle colour to black
+	if (distanceToIntersection < distanceToLight) return Colour(0, 0, 0);
+	else return surface.intersectedTriangle.colour;
 }
 
 // designates maximum and minimum x values spanning all y values in a triangle
@@ -288,83 +409,15 @@ std::vector<uint32_t> getColourMap(std::vector<float> t0, std::vector<float> t1,
 	return colourMap;
 }
 
-// Given a colour name will return the equivalent Colour class, white (with name Unknown) if not found
-Colour getColour(string colour, vector<Colour> colourVec) {
-	for (int i = 0; i < colourVec.size(); i++) {
-		if (colourVec[i].name == colour) { return colourVec[i]; }
-	}
-	return Colour("Unknown", 0, 0, 0);
-}
-
-// Unloads a .obj file and stores the models in a vector
-vector<ModelTriangle> unloadobjFile(string fileName, float scalingFactor, vector<Colour> colourVec) {
-	ifstream file(fileName);
-	string line;
-	vector<ModelTriangle> v;
-	vector<glm::vec3> currentVectors;
-	Colour colour;
-	while (!file.eof()) {
-		getline(file, line);
-		vector<string> currentLine = split(line, ' ');
-		if (line[0] == 'u') {
-			colour = getColour(currentLine[1], colourVec);
-		}
-		else if (line[0] == 'v') {
-			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
-			currentVectors.push_back(lineVector);
-		}
-		else if (line[0] == 'f') {
-			glm::vec3 lineVector(stof(currentLine[1]), stof(currentLine[2]), stof(currentLine[3]));
-			v.push_back(ModelTriangle(currentVectors[lineVector[0] - 1], currentVectors[lineVector[1] - 1], currentVectors[lineVector[2] - 1], colour));
-		}
-	}
-	return v;
-}
-
-// Unloads a .obj file and stores the models in a vector
-vector<glm::vec3> unloadobjVertices(string fileName, float scalingFactor) {
-	ifstream file(fileName);
-	string line;
-	vector<glm::vec3> currentVectors;
-	while (!file.eof()) {
-		getline(file, line);
-		vector<string> currentLine = split(line, ' ');
-		if (line[0] == 'v') {
-			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
-			currentVectors.push_back(lineVector);
-		}
-	}
-	return currentVectors;
-}
-
-// Unloads a .mtl file and stores the relevant colours in a vector
-vector<Colour> unloadMaterialFile(string fileName) {
-	ifstream file(fileName);
-	string line;
-	vector<Colour> c;
-	string name;
-	while (!file.eof()) {
-		getline(file, line);
-		if (line[0] == 'n') {
-			vector<string> currentLine = split(line, ' ');
-			name = currentLine[1];
-		}
-		else if (line[0] == 'K') {
-			vector<string> currentLine = split(line, ' ');
-			c.push_back(Colour(name, round(stof(currentLine[1]) * 255), round(stof(currentLine[2]) * 255), round(stof(currentLine[3]) * 255)));
-		}
-	}
-	return c;
-}
-
 // Draws a line from point a to b
 void drawLine(DrawingWindow& window, CanvasPoint to, CanvasPoint from, uint32_t colour) {
-	float steps = std::max(abs(to.x - from.x), abs(to.x - from.x));
-	float xSteps = to.x - from.x / steps;
-	float ySteps = to.x - from.x / steps;
-	for (float i = 0.0; i < steps; i++) {
-		float x = from.x + (xSteps * i);
-		float y = from.y + (ySteps * i);
+	float numberOfSteps = std::max(abs(to.x - from.x), abs(to.y - from.y));
+	float xStep = (to.x - from.x) / numberOfSteps;
+	float yStep = (to.y - from.y) / numberOfSteps;
+
+	for (float i = 0.0; i < numberOfSteps; i++) {
+		float x = from.x + (xStep * i);
+		float y = from.y + (yStep * i);
 		window.setPixelColour(round(x), round(y), colour);
 	}
 }
@@ -379,25 +432,8 @@ void drawLineColoured(DrawingWindow& window, CanvasPoint from, CanvasPoint to, s
 	}
 }
 
-// Draws a filled triangle using rasterization
+// Draws filled triangle taking into account depth buffer
 void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
-	// Creates a template structure for storing all points which will be sorted
-	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
-	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
-	uint32_t newColour = convertColour(colour);
-
-	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
-	for (int y = sorted[0].y; y < sorted[3].y; y++) {
-		for (int x = round(xRange[y - sorted[0].y][0]); x <= round(xRange[y - sorted[0].y][1]); x++) {
-			window.setPixelColour(x, y, newColour);
-		}
-	}
-
-	//Colour white{ 255, 255, 255 };
-	//drawStrokedTriangle(window, triangle, white);
-}
-
-void drawFilledTriangle2(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
 	// Creates a template structure for storing all points which will be sorted
 	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
 	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
@@ -459,17 +495,52 @@ void randomFilledTriangle(DrawingWindow& window) {
 	drawFilledTriangle(window, generateRandomTriangle(), Colour{ rand() % 256, rand() % 256, rand() % 256 });
 }
 
-vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
-vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
-
-void render(DrawingWindow& window, vector<ModelTriangle> triangles, glm::vec3 cameraPosition, float focalLength) {
+// renders scene using wire frames
+void renderWireFrame(DrawingWindow& window) {
+	window.clearPixels();
 	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[0], focalLength, 20);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[1], focalLength, 20);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPosition, triangles[i].vertices[2], focalLength, 20);
-		drawFilledTriangle2(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, 17);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, 17);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, 17);
+		drawStrokedTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
+	}
+}
+
+// renders scene using rasterization
+void renderRasterizedScene(DrawingWindow& window) {
+	window.clearPixels();
+	for (int i = 0; i < triangles.size(); i++) {
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, 17);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, 17);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, 17);
+		drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 	}
 	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
+}
+
+// renders scene using ray-tracing
+void renderRayTracedScene(DrawingWindow& window) {
+	window.clearPixels();
+	for (int y = 0; y < HEIGHT; y++) {
+		for (int x = 0; x < WIDTH; x++) {
+
+			// Calculates x and y position in 3D space equivalent to the .obj file
+			// * 73 ensures it matches with rasterized / wire frame scaling 
+			float u = ((x + cameraPos.x) - WIDTH / 2) / (focalLength * (focalLength) * 73);
+			float v = -((y + cameraPos.y) - HEIGHT / 2) / (focalLength * (focalLength) * 73);
+
+			// Adjusts direction in accordance to camera orientation and position
+			glm::vec3 rayDirection(u, v, cameraPos.z-focalLength);
+			rayDirection = rayDirection - cameraPos;
+			rayDirection = rayDirection * cameraOrientation;
+
+			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection);
+			
+			// If surface cannot see light will change colour to black
+			closestIntersection.intersectedTriangle.colour = convertShadow(light, closestIntersection);
+			window.setPixelColour(x, y, convertColour(closestIntersection.intersectedTriangle.colour));
+		}
+	}
 }
 
 glm::mat3 lookat(glm::vec3 cameraPos, glm::vec3 target = glm::vec3(0,0,0)) {
@@ -482,8 +553,6 @@ glm::mat3 lookat(glm::vec3 cameraPos, glm::vec3 target = glm::vec3(0,0,0)) {
 
 void draw(DrawingWindow& window) {
 	window.clearPixels();
-	//vector<glm::vec3> vectors = unloadobjVertices("cornell-box.obj", 0.17);
-	render(window, triangles, cameraPos, focalLength);
 	if (orbit){
 		cameraPos = cameraPos * rotateMatrixY(0.05);
 		cameraOrientation = lookat(cameraPos);
@@ -496,6 +565,10 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 		else if (event.key.keysym.sym == SDLK_RIGHT) cameraOrientation = cameraOrientation * rotateMatrixY(-0.05);
 		else if (event.key.keysym.sym == SDLK_UP) cameraOrientation = cameraOrientation * rotateMatrixX(0.05);
 		else if (event.key.keysym.sym == SDLK_DOWN) cameraOrientation = cameraOrientation * rotateMatrixX(-0.05);
+
+		else if (event.key.keysym.sym == SDLK_1) renderMode = 0;
+		else if (event.key.keysym.sym == SDLK_2) renderMode = 1;
+		else if (event.key.keysym.sym == SDLK_3) renderMode = 2;
 
 		else if (event.key.keysym.sym == SDLK_w) cameraPos[1] -= 0.05;
 		else if (event.key.keysym.sym == SDLK_a) cameraPos[0] += 0.05;
@@ -523,11 +596,16 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
+	//renderRayTracedScene(window, cameraPos);
+	//renderRasterizedScene(window, triangles, cameraPos, focalLength);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		draw(window);
+		if (renderMode == 0) renderWireFrame(window);
+		if (renderMode == 1) renderRasterizedScene(window);
+		if (renderMode == 2) renderRayTracedScene(window);
+
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
