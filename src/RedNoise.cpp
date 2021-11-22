@@ -5,7 +5,6 @@
 #include <vector>
 #include <algorithm>
 #include <glm/glm.hpp>
-#include <glm/ext.hpp>
 #include <CanvasPoint.h>
 #include <Colour.h>
 #include <TextureMap.h>
@@ -18,14 +17,16 @@ using namespace std;
 #define HEIGHT 240
 
 TextureMap texture = TextureMap("texture.ppm");
-glm::vec3 cameraPos(0.0, 0.0, 4.0);
-float focalLength = 2;
-int renderMode = 1;
+glm::vec3 cameraPos(0.0, 0.0, 2.0);
+float focalLength = 1;
+int renderMode = 2;
+int lightingMode = 2;
+float scaleFactor = 350;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
-glm::vec3 light(0.0, 0.40, 0);
+glm::vec3 light(0.0, 0.15, 0.35);
 vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 
 // Given a colour name will return the equivalent Colour class, white (with name Unknown) if not found
@@ -55,7 +56,10 @@ vector<ModelTriangle> unloadobjFile(string fileName, float scalingFactor, vector
 		}
 		else if (line[0] == 'f') {
 			glm::vec3 lineVector(stof(currentLine[1]), stof(currentLine[2]), stof(currentLine[3]));
-			v.push_back(ModelTriangle(currentVectors[lineVector[0] - 1], currentVectors[lineVector[1] - 1], currentVectors[lineVector[2] - 1], colour));
+			ModelTriangle currentTriangle(currentVectors[lineVector[0] - 1], currentVectors[lineVector[1] - 1], currentVectors[lineVector[2] - 1], colour);
+			// calculates normal of triangle from 2 edges
+			currentTriangle.normal = glm::cross(currentTriangle.vertices[1] - currentTriangle.vertices[0], currentTriangle.vertices[2] - currentTriangle.vertices[0]);
+			v.push_back(currentTriangle);
 		}
 	}
 	return v;
@@ -179,60 +183,6 @@ std::vector<std::vector<float>> interpolateLineSteps(CanvasPoint from, CanvasPoi
 	}
 
 	return v;
-}
-
-// Finds equivalent vertex point on window 
-CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale) {
-	glm::vec3 correctedVertices = vertexPosition - cameraPosition;
-	correctedVertices = correctedVertices * cameraOrientation;
-	float u = (focalLength * (correctedVertices[0]*-scale / correctedVertices[2]*scale)) + (WIDTH / 2);
-	float v = (focalLength * (correctedVertices[1]*scale / correctedVertices[2]*scale)) + (HEIGHT / 2);
-	return CanvasPoint(round(u), round(v), correctedVertices[2]);
-}
-
-// Finds closest triangle that intersects 
-RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, int triangleIndex=-1) {
-	RayTriangleIntersection currentClosest;
-	currentClosest.distanceFromCamera = numeric_limits<float>::max();
-
-	for (int i = 0; i < triangles.size(); i++) {
-		glm::vec3 e0 = triangles[i].vertices[1] - triangles[i].vertices[0];
-		glm::vec3 e1 = triangles[i].vertices[2] - triangles[i].vertices[0];
-		glm::vec3 SPVector = source - triangles[i].vertices[0];
-		glm::mat3 DEMatrix(-rayDirection, e0, e1);
-		glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
-
-		float t = possibleSolution[0];
-		float u = possibleSolution[1];
-		float v = possibleSolution[2];
-
-		if ((u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0) {
-			// skips checking for triangle i if triangleIndex is specified
-			if (t < currentClosest.distanceFromCamera && t > 0 && triangleIndex != i) {
-				currentClosest.distanceFromCamera = t;
-				currentClosest.intersectedTriangle = triangles[i];
-				currentClosest.triangleIndex = i;
-				currentClosest.intersectionPoint = glm::vec3(triangles[i].vertices[0]) + (u * e0) + (v * e1);
-			}
-		}
-	}
-	return currentClosest;
-}
-
-// returns black if surface cannot see light
-Colour convertShadow(glm::vec3 light, RayTriangleIntersection surface) {
-	// calculate direction of surface to light source
-	glm::vec3 rayShadowDirection = light - surface.intersectionPoint;
-	rayShadowDirection = glm::normalize(rayShadowDirection);
-
-	// find closest intersection between light source
-	RayTriangleIntersection shadowRay = getClosestIntersection(surface.intersectionPoint, rayShadowDirection, surface.triangleIndex);
-	float distanceToIntersection = glm::distance(shadowRay.intersectionPoint, surface.intersectionPoint);
-	float distanceToLight = glm::distance(light,surface.intersectionPoint);
-
-	// if distance to intersection is closer to surface then colour set triangle colour to black
-	if (distanceToIntersection < distanceToLight) return Colour(0, 0, 0);
-	else return surface.intersectedTriangle.colour;
 }
 
 // designates maximum and minimum x values spanning all y values in a triangle
@@ -409,26 +359,109 @@ std::vector<uint32_t> getColourMap(std::vector<float> t0, std::vector<float> t1,
 	return colourMap;
 }
 
+// Finds equivalent vertex point on window 
+CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale) {
+	glm::vec3 correctedVertices = vertexPosition - cameraPosition;
+	correctedVertices = correctedVertices * cameraOrientation;
+	float u = (focalLength * (correctedVertices[0] / correctedVertices[2]) * -scale) + (WIDTH / 2);
+	float v = (focalLength * (correctedVertices[1] / correctedVertices[2]) * scale) + (HEIGHT / 2);
+	return CanvasPoint(round(u), round(v), correctedVertices[2]);
+}
+
+// Finds closest triangle that intersects 
+RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, int triangleIndex = -1) {
+	RayTriangleIntersection currentClosest;
+	currentClosest.distanceFromCamera = numeric_limits<float>::max();
+
+	for (int i = 0; i < triangles.size(); i++) {
+		glm::vec3 e0 = triangles[i].vertices[1] - triangles[i].vertices[0];
+		glm::vec3 e1 = triangles[i].vertices[2] - triangles[i].vertices[0];
+		glm::vec3 SPVector = source - triangles[i].vertices[0];
+		glm::mat3 DEMatrix(-rayDirection, e0, e1);
+		glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+
+		float t = possibleSolution[0];
+		float u = possibleSolution[1];
+		float v = possibleSolution[2];
+
+		if ((u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0) {
+			// skips checking for triangle i if triangleIndex is specified
+			if (t < currentClosest.distanceFromCamera && t > 0 && triangleIndex != i) {
+				currentClosest.distanceFromCamera = t;
+				currentClosest.intersectedTriangle = triangles[i];
+				currentClosest.triangleIndex = i;
+				currentClosest.intersectionPoint = glm::vec3(triangles[i].vertices[0] + (u * e0) + (v * e1));
+			}
+		}
+	}
+	return currentClosest;
+}
+
+// returns black if surface cannot see light
+Colour convertShadow(RayTriangleIntersection surface) {
+	// calculate direction of surface to light source
+	glm::vec3 rayShadowDirection = light - surface.intersectionPoint;
+	rayShadowDirection = glm::normalize(rayShadowDirection);
+
+	// find closest intersection between light source
+	RayTriangleIntersection shadowRay = getClosestIntersection(surface.intersectionPoint, rayShadowDirection, surface.triangleIndex);
+	float distanceToIntersection = glm::distance(shadowRay.intersectionPoint, surface.intersectionPoint);
+	float distanceToLight = glm::distance(light, surface.intersectionPoint);
+
+	// if distance to intersection is closer to surface then colour set triangle colour to black
+	if (distanceToIntersection < distanceToLight) return Colour(0, 0, 0);
+	else return surface.intersectedTriangle.colour;
+}
+
+// darkens pixels based on distance from light
+float proximityLighting(RayTriangleIntersection surface) {
+
+	float distance = glm::distance(surface.intersectionPoint, light);
+	float brightness = 1 / (3 * pow(distance, 2));
+
+	if (brightness > 1) return 1;
+	else return brightness;
+}
+
+// darkens pixels based on angle from light
+float diffuseLighting(RayTriangleIntersection surface) {
+	float brightness = proximityLighting(surface);
+	glm::vec3 normal = glm::normalize(surface.intersectedTriangle.normal);
+
+	glm::vec3 toLight = light - surface.intersectionPoint;
+	float angleOfIncidence = glm::dot(normal, toLight);
+
+	if (angleOfIncidence < 0) return 0;
+	else return brightness * angleOfIncidence;
+}
+
+float specularLighting(RayTriangleIntersection surface, int spread=64) {
+	glm::vec3 lightVector = surface.intersectionPoint - light;
+	glm::vec3 normal = surface.intersectedTriangle.normal;
+	glm::vec3 reflectionVector = lightVector - (2.0f * normal * glm::dot(lightVector, normal));
+	glm::vec3 viewingVector = surface.intersectionPoint - cameraPos;
+	float brightness = glm::pow(glm::dot(viewingVector, reflectionVector), spread);
+
+	if (brightness < 0) brightness = 0;
+	return brightness;
+}
+
+Colour calculateBrightness(RayTriangleIntersection surface, float brightness) {
+	Colour colour = surface.intersectedTriangle.colour;
+	return Colour(colour.red * brightness, colour.green * brightness, colour.blue * brightness);
+}
+
 // Draws a line from point a to b
-void drawLine(DrawingWindow& window, CanvasPoint to, CanvasPoint from, uint32_t colour) {
+void drawLine(DrawingWindow& window, CanvasPoint to, CanvasPoint from, uint32_t colour=convertColour(Colour(255,255,255))) {
 	float numberOfSteps = std::max(abs(to.x - from.x), abs(to.y - from.y));
 	float xStep = (to.x - from.x) / numberOfSteps;
 	float yStep = (to.y - from.y) / numberOfSteps;
 
 	for (float i = 0.0; i < numberOfSteps; i++) {
-		float x = from.x + (xStep * i);
-		float y = from.y + (yStep * i);
-		window.setPixelColour(round(x), round(y), colour);
-	}
-}
-
-// Draws colored line given a pixel for each step of the line
-void drawLineColoured(DrawingWindow& window, CanvasPoint from, CanvasPoint to, std::vector<uint32_t> colours, int steps) {
-	std::vector<std::vector<float>> coords = interpolateLineSteps(from, to, steps);
-	std::vector<float> colourStep = interpolateSingleFloats(0, colours.size(), coords.size());
-	for (int i = 0; i < coords.size(); i++) {
-		int index = round(colourStep[i]);
-		if (index < colours.size()) { window.setPixelColour(round(coords[i][0]), round(coords[i][1]), colours[index]); }
+		int x = round(from.x + (xStep * i));
+		int y = round(from.y + (yStep * i));
+		// check if pixel isn't out of bounds
+		if (x < WIDTH && x > 0 && y > 0 && y < HEIGHT) window.setPixelColour(round(x), round(y), colour);
 	}
 }
 
@@ -499,9 +532,9 @@ void randomFilledTriangle(DrawingWindow& window) {
 void renderWireFrame(DrawingWindow& window) {
 	window.clearPixels();
 	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, 17);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, 17);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, 17);
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, scaleFactor);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, scaleFactor);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, scaleFactor);
 		drawStrokedTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 	}
 }
@@ -510,9 +543,9 @@ void renderWireFrame(DrawingWindow& window) {
 void renderRasterizedScene(DrawingWindow& window) {
 	window.clearPixels();
 	for (int i = 0; i < triangles.size(); i++) {
-		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, 17);
-		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, 17);
-		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, 17);
+		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, scaleFactor);
+		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, scaleFactor);
+		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, scaleFactor);
 		drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 	}
 	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
@@ -525,9 +558,9 @@ void renderRayTracedScene(DrawingWindow& window) {
 		for (int x = 0; x < WIDTH; x++) {
 
 			// Calculates x and y position in 3D space equivalent to the .obj file
-			// * 73 ensures it matches with rasterized / wire frame scaling 
-			float u = ((x + cameraPos.x) - WIDTH / 2) / (focalLength * (focalLength) * 73);
-			float v = -((y + cameraPos.y) - HEIGHT / 2) / (focalLength * (focalLength) * 73);
+			// scale factor ^2 ensures scaling matches with rasterized and wireframe render
+			float u = ((x + cameraPos.x) - WIDTH / 2) / scaleFactor;
+			float v = -((y + cameraPos.y) - HEIGHT / 2) / scaleFactor;
 
 			// Adjusts direction in accordance to camera orientation and position
 			glm::vec3 rayDirection(u, v, cameraPos.z-focalLength);
@@ -536,9 +569,17 @@ void renderRayTracedScene(DrawingWindow& window) {
 
 			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection);
 			
-			// If surface cannot see light will change colour to black
-			closestIntersection.intersectedTriangle.colour = convertShadow(light, closestIntersection);
+			// Colours hard shadows black
+			if (lightingMode == 1) closestIntersection.intersectedTriangle.colour = convertShadow(closestIntersection);
+
+			// Colours pixels based on how far from light source (Proximity lighting)
+			if (lightingMode == 2) closestIntersection.intersectedTriangle.colour = calculateBrightness(closestIntersection, diffuseLighting(closestIntersection));
+
+			if (lightingMode == 3) closestIntersection.intersectedTriangle.colour = calculateBrightness(closestIntersection, specularLighting(closestIntersection));
+
+
 			window.setPixelColour(x, y, convertColour(closestIntersection.intersectedTriangle.colour));
+
 		}
 	}
 }
@@ -566,25 +607,32 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 		else if (event.key.keysym.sym == SDLK_UP) cameraOrientation = cameraOrientation * rotateMatrixX(0.05);
 		else if (event.key.keysym.sym == SDLK_DOWN) cameraOrientation = cameraOrientation * rotateMatrixX(-0.05);
 
-		else if (event.key.keysym.sym == SDLK_1) renderMode = 0;
-		else if (event.key.keysym.sym == SDLK_2) renderMode = 1;
-		else if (event.key.keysym.sym == SDLK_3) renderMode = 2;
+		else if (event.key.keysym.sym == SDLK_PAGEUP) light.y = light.y + 0.05;
+		else if (event.key.keysym.sym == SDLK_PAGEDOWN) light.y = light.y - 0.05;
 
-		else if (event.key.keysym.sym == SDLK_w) cameraPos[1] -= 0.05;
-		else if (event.key.keysym.sym == SDLK_a) cameraPos[0] += 0.05;
-		else if (event.key.keysym.sym == SDLK_s) cameraPos[1] += 0.05;
-		else if (event.key.keysym.sym == SDLK_d) cameraPos[0] -= 0.05;
+		else if (event.key.keysym.sym == SDLK_1) renderMode = 0; // wireframe model
+		else if (event.key.keysym.sym == SDLK_2) renderMode = 1; // rasterized model
+		else if (event.key.keysym.sym == SDLK_3) renderMode = 2; // ray traced model
 
-		else if (event.key.keysym.sym == SDLK_EQUALS) cameraPos[2] -= 0.05;
-		else if (event.key.keysym.sym == SDLK_MINUS) cameraPos[2] += 0.05;
+		else if (event.key.keysym.sym == SDLK_z) lightingMode = 0; // no lighting effects
+		else if (event.key.keysym.sym == SDLK_x) lightingMode = 1; // creates hard shadows on models
+		else if (event.key.keysym.sym == SDLK_c) lightingMode = 2; // proximity lighting on model
 
-		else if (event.key.keysym.sym == SDLK_o) orbit = !orbit;
+		else if (event.key.keysym.sym == SDLK_w) cameraPos[1] -= 0.05; // move model up
+		else if (event.key.keysym.sym == SDLK_a) cameraPos[0] += 0.05; // move model left
+		else if (event.key.keysym.sym == SDLK_s) cameraPos[1] += 0.05; // move model down
+		else if (event.key.keysym.sym == SDLK_d) cameraPos[0] -= 0.05; // move model right
 
-		else if (event.key.keysym.sym == SDLK_l) cameraOrientation = lookat(cameraPos);
+		else if (event.key.keysym.sym == SDLK_EQUALS) cameraPos[2] -= 0.05; // zoom in 
+		else if (event.key.keysym.sym == SDLK_MINUS) cameraPos[2] += 0.05; // zoom out
 
-		else if (event.key.keysym.sym == SDLK_u) randomStrokedTriangle(window);
+		else if (event.key.keysym.sym == SDLK_o) orbit = !orbit; // orbit the model
 
-		else if (event.key.keysym.sym == SDLK_j) randomFilledTriangle(window);
+		else if (event.key.keysym.sym == SDLK_l) cameraOrientation = lookat(cameraPos); // if model out of view camera looks at model
+
+		else if (event.key.keysym.sym == SDLK_u) randomStrokedTriangle(window); // draws a random unfilled triangle on screen
+
+		else if (event.key.keysym.sym == SDLK_j) randomFilledTriangle(window); // draws a random filled triangle on screen
 
 	}
 	else if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -596,15 +644,15 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
-	//renderRayTracedScene(window, cameraPos);
+	renderRayTracedScene(window);
 	//renderRasterizedScene(window, triangles, cameraPos, focalLength);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		if (renderMode == 0) renderWireFrame(window);
-		if (renderMode == 1) renderRasterizedScene(window);
-		if (renderMode == 2) renderRayTracedScene(window);
+		//if (renderMode == 0) renderWireFrame(window);
+		//if (renderMode == 1) renderRasterizedScene(window);
+		//if (renderMode == 2) renderRayTracedScene(window);
 
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
