@@ -12,7 +12,7 @@
 
 
 cmake_minimum_required(VERSION 3.12)
-project(RedNoise)
+project(main)
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -23,10 +23,11 @@ set(GLM_INCLUDE_DIRS libs/glm-0.9.7.2)
 find_package(SDL2 REQUIRED)
 
 include_directories(${SDL2_INCLUDE_DIRS} ${GLM_INCLUDE_DIRS})
+include_directories(src)
 include_directories(libs/sdw)
 include_directories(textures)
 
-add_executable(RedNoise
+add_executable(main
         libs/sdw/CanvasPoint.cpp
         libs/sdw/CanvasTriangle.cpp
         libs/sdw/Colour.cpp
@@ -36,11 +37,17 @@ add_executable(RedNoise
         libs/sdw/TextureMap.cpp
         libs/sdw/TexturePoint.cpp
         libs/sdw/Utils.cpp
-        src/RedNoise.cpp 
-        texture.ppm)
+        src/main.cpp 
+        texture.ppm 
+        src/rasterize.h 
+        src/wireframe.h 
+        src/raytrace.h
+        src/camera.h 
+        src/interpolate.h
+        src/lighting.h)
 
 if (MSVC)
-    target_compile_options(RedNoise
+    target_compile_options(main
             PUBLIC
             /W3
             /Zc:wchar_t
@@ -51,7 +58,7 @@ if (MSVC)
         set(SDL2_LIBRARIES SDL2::SDL2 SDL2::SDL2main)
     endif()
 else ()
-    target_compile_options(RedNoise
+    target_compile_options(main
         PUBLIC
         -Wall
         -Wextra
@@ -64,13 +71,13 @@ else ()
 
     set(DEBUG_OPTIONS -O2 -fno-omit-frame-pointer -g)
     set(RELEASE_OPTIONS -O3 -march=native -mtune=native)
-    target_link_libraries(RedNoise PUBLIC $<$<CONFIG:Debug>:-Wl,-lasan>)
+    target_link_libraries(main PUBLIC $<$<CONFIG:Debug>:-Wl,-lasan>)
 
 endif()
 
 
-target_compile_options(RedNoise PUBLIC "$<$<CONFIG:RelWithDebInfo>:${RELEASE_OPTIONS}>")
-target_compile_options(RedNoise PUBLIC "$<$<CONFIG:Release>:${RELEASE_OPTIONS}>")
-target_compile_options(RedNoise PUBLIC "$<$<CONFIG:Debug>:${DEBUG_OPTIONS}>")
+target_compile_options(main PUBLIC "$<$<CONFIG:RelWithDebInfo>:${RELEASE_OPTIONS}>")
+target_compile_options(main PUBLIC "$<$<CONFIG:Release>:${RELEASE_OPTIONS}>")
+target_compile_options(main PUBLIC "$<$<CONFIG:Debug>:${DEBUG_OPTIONS}>")
  
-target_link_libraries(RedNoise PRIVATE ${SDL2_LIBRARIES})
+target_link_libraries(main PRIVATE ${SDL2_LIBRARIES})
