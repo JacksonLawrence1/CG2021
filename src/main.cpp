@@ -28,7 +28,7 @@ using namespace glm;
 TextureMap texture = TextureMap("texture.ppm");
 vec3 cameraPos(0.0, 0, 4.0);
 float focalLength = 2;
-int renderMode = 2;
+int renderMode = 0;
 int lightingMode = 5;
 float scaleFactor = 350;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
@@ -97,15 +97,15 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
-	renderRayTracedScene(window, cameraPos, cameraOrientation, triangles, light, lightingMode, focalLength, scaleFactor);
+	//renderRayTracedScene(window, cameraPos, cameraOrientation, triangles, light, lightingMode, focalLength, scaleFactor);
 	//renderRasterizedScene(window, triangles, cameraPos, focalLength);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		//if (renderMode == 0) renderWireFrame(window);
-		//if (renderMode == 1) renderRasterizedScene(window);
-		//if (renderMode == 2) renderRayTracedScene(window);
+		if (renderMode == 0) renderWireFrame(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
+		if (renderMode == 1) renderRasterizedScene(window, cameraPos, triangles, focalLength, scaleFactor, cameraOrientation);
+		//if (renderMode == 2) renderRayTracedScene(window, cameraPos, cameraOrientation, triangles, light, lightingMode, focalLength, scaleFactor);
 
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();

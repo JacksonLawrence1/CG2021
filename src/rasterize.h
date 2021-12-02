@@ -225,9 +225,10 @@ void randomFilledTriangle(DrawingWindow& window, vector<vector<float>> depthBuff
 }
 
 // renders scene using rasterization
-void renderRasterizedScene(DrawingWindow& window, vec3 cameraPos, vector<ModelTriangle> triangles, float focalLength, float scaleFactor, mat3 cameraOrientation) {
+void renderRasterizedScene(DrawingWindow& window, vec3 cameraPos, vector<ModelTriangle> triangles, float focalLength, float scaleFactor, mat3 cameraOrientation, vector<vector<float>> depthBuffer) {
 	window.clearPixels();
 	vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
+
 
 	for (int i = 0; i < triangles.size(); i++) {
 		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, scaleFactor, cameraOrientation);
@@ -235,5 +236,6 @@ void renderRasterizedScene(DrawingWindow& window, vec3 cameraPos, vector<ModelTr
 		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, scaleFactor, cameraOrientation);
 		drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour, depthBuffer);
 	}
-	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
+
+	vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 }
