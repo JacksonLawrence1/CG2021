@@ -17,16 +17,17 @@ using namespace std;
 #define HEIGHT 240
 
 TextureMap texture = TextureMap("texture.ppm");
-glm::vec3 cameraPos(0.0, 0.0, 2.0);
-float focalLength = 1;
+glm::vec3 cameraPos(0.0, 0, 4.0);
+float focalLength = 2;
 int renderMode = 2;
-int lightingMode = 2;
+int lightingMode = 5;
 float scaleFactor = 350;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
-glm::vec3 light(0.0, 0.15, 0.35);
+//glm::vec3 light(-0.42, 0.8, 0.5);
+glm::vec3 light(0.0, 0.4, 0.2);
 vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 
 // Given a colour name will return the equivalent Colour class, white (with name Unknown) if not found
@@ -65,20 +66,34 @@ vector<ModelTriangle> unloadobjFile(string fileName, float scalingFactor, vector
 	return v;
 }
 
-// Unloads a .obj file and stores the models in a vector
-vector<glm::vec3> unloadobjVertices(string fileName, float scalingFactor) {
+vector<ModelTriangle> unloadSphere(string fileName, float scalingFactor, Colour colour) {
 	ifstream file(fileName);
 	string line;
+	vector<ModelTriangle> v;
 	vector<glm::vec3> currentVectors;
+	vector<glm::vec3> currentNormals;
 	while (!file.eof()) {
 		getline(file, line);
 		vector<string> currentLine = split(line, ' ');
-		if (line[0] == 'v') {
+		if (line[0] == 'v' && (line[1] != 't' && line[1] != 'n')) {
 			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
 			currentVectors.push_back(lineVector);
+		} 
+		else if (line[0] == 'v' && line[1] == 'n') {
+			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
+			currentNormals.push_back(lineVector);
+		}
+		else if (line[0] == 'f') {
+			glm::vec3 lineVector(stof(currentLine[1]), stof(currentLine[2]), stof(currentLine[3]));
+			ModelTriangle currentTriangle(currentVectors[lineVector[0] - 1], currentVectors[lineVector[1] - 1], currentVectors[lineVector[2] - 1], colour);
+			// calculates normal of triangle from 2 edges
+			currentTriangle.normal = glm::cross(currentTriangle.vertices[1] - currentTriangle.vertices[0], currentTriangle.vertices[2] - currentTriangle.vertices[0]);
+			currentTriangle.colour = colour;
+			currentTriangle.vertex_normals = { currentNormals[lineVector[0] - 1], currentNormals[lineVector[1] - 1], currentNormals[lineVector[2] - 1] };
+			v.push_back(currentTriangle);
 		}
 	}
-	return currentVectors;
+	return v;
 }
 
 // Unloads a .mtl file and stores the relevant colours in a vector
@@ -103,6 +118,7 @@ vector<Colour> unloadMaterialFile(string fileName) {
 
 vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
 vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
+//vector<ModelTriangle> triangles = unloadSphere("sphere.obj", 0.17, Colour(255, 0, 0));
 
 // Generates a triangle with random vertices in the form CanvasTriangle
 CanvasTriangle generateRandomTriangle() {
@@ -269,6 +285,7 @@ std::vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint 
 	sorted[0].texturePoint = v0.texturePoint;
 	sorted[1].texturePoint = v1.texturePoint;
 	sorted[2].texturePoint = v2.texturePoint;
+
 	// order by y coordinates
 	if (sorted[1].y < sorted[0].y) { std::swap(sorted[0], sorted[1]); }
 	if (sorted[2].y < sorted[1].y) { std::swap(sorted[1], sorted[2]); }
@@ -398,26 +415,26 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 }
 
 // returns black if surface cannot see light
-Colour convertShadow(RayTriangleIntersection surface) {
+float hardShadowLighting(RayTriangleIntersection surface) {
 	// calculate direction of surface to light source
 	glm::vec3 rayShadowDirection = light - surface.intersectionPoint;
 	rayShadowDirection = glm::normalize(rayShadowDirection);
+	glm::vec3 normalizedIntersection = glm::normalize(surface.intersectionPoint);
 
 	// find closest intersection between light source
 	RayTriangleIntersection shadowRay = getClosestIntersection(surface.intersectionPoint, rayShadowDirection, surface.triangleIndex);
-	float distanceToIntersection = glm::distance(shadowRay.intersectionPoint, surface.intersectionPoint);
-	float distanceToLight = glm::distance(light, surface.intersectionPoint);
+	float distanceToIntersection = glm::distance(glm::normalize(shadowRay.intersectionPoint), normalizedIntersection);
+	float distanceToLight = glm::distance(light, normalizedIntersection);
 
 	// if distance to intersection is closer to surface then colour set triangle colour to black
-	if (distanceToIntersection < distanceToLight) return Colour(0, 0, 0);
-	else return surface.intersectedTriangle.colour;
+	if (distanceToIntersection < distanceToLight) return 0;
+	else return 1;
 }
 
 // darkens pixels based on distance from light
 float proximityLighting(RayTriangleIntersection surface) {
-
-	float distance = glm::distance(surface.intersectionPoint, light);
-	float brightness = 1 / (3 * pow(distance, 2));
+	float lightDistance = glm::distance(surface.intersectionPoint, light);
+	float brightness = 1 / (3 * glm::pow(lightDistance, 2));
 
 	if (brightness > 1) return 1;
 	else return brightness;
@@ -426,29 +443,63 @@ float proximityLighting(RayTriangleIntersection surface) {
 // darkens pixels based on angle from light
 float diffuseLighting(RayTriangleIntersection surface) {
 	float brightness = proximityLighting(surface);
-	glm::vec3 normal = glm::normalize(surface.intersectedTriangle.normal);
 
+	// find angle of incidence in accordance to light
 	glm::vec3 toLight = light - surface.intersectionPoint;
-	float angleOfIncidence = glm::dot(normal, toLight);
-
-	if (angleOfIncidence < 0) return 0;
-	else return brightness * angleOfIncidence;
+	float angleOfIncidence = glm::dot(glm::normalize(surface.intersectedTriangle.normal), toLight);
+	if (angleOfIncidence < 0) angleOfIncidence = 0;
+	return brightness * (angleOfIncidence*1.7);
 }
 
-float specularLighting(RayTriangleIntersection surface, int spread=64) {
-	glm::vec3 lightVector = surface.intersectionPoint - light;
+// specularly illuminated surface
+float specularLighting(RayTriangleIntersection surface, int spread=256) {
+	glm::vec3 lightVector = light - surface.intersectionPoint;
 	glm::vec3 normal = surface.intersectedTriangle.normal;
-	glm::vec3 reflectionVector = lightVector - (2.0f * normal * glm::dot(lightVector, normal));
-	glm::vec3 viewingVector = surface.intersectionPoint - cameraPos;
-	float brightness = glm::pow(glm::dot(viewingVector, reflectionVector), spread);
+	glm::vec3 reflectionVector = glm::normalize(lightVector - (2.0f * normal * glm::dot(lightVector, normal)));
+	glm::vec3 direction = glm::normalize(cameraPos - surface.intersectionPoint);
+	float brightness = glm::pow(glm::dot(direction, reflectionVector), spread);
 
-	if (brightness < 0) brightness = 0;
 	return brightness;
 }
 
-Colour calculateBrightness(RayTriangleIntersection surface, float brightness) {
+float allLighting(RayTriangleIntersection surface) {
+	float shadow = hardShadowLighting(surface);
+	float diffuse = diffuseLighting(surface);
+	float spec = specularLighting(surface, 16);
+
+	if (shadow < diffuse) return shadow;
+	//if (spec > diffuse) return spec;
+	else return diffuse;
+}
+
+Colour calculateBrightness(RayTriangleIntersection surface, float brightness, bool ambiance=true) {
 	Colour colour = surface.intersectedTriangle.colour;
+	// ambiance and defaulted to true
+	if (brightness < 0.2 && ambiance) brightness = 0.2;
 	return Colour(colour.red * brightness, colour.green * brightness, colour.blue * brightness);
+}
+
+// darkens pixels based on angle from light
+float diffuseLightingGouraud(RayTriangleIntersection surface, glm::vec3 point, glm::vec3 normal) {
+	float brightness = proximityLighting(surface);
+
+	// find angle of incidence in accordance to light
+	glm::vec3 toLight = light - point;
+	float angleOfIncidence = glm::dot(glm::normalize(normal), toLight);
+	if (angleOfIncidence < 0) angleOfIncidence = 0;
+	return brightness * (angleOfIncidence + 0.1);
+}
+
+float gouraudLighting(RayTriangleIntersection surface, int x, int y) {
+	float a = diffuseLightingGouraud(surface, surface.intersectedTriangle.vertices[0], surface.intersectedTriangle.vertex_normals[0]);
+	float b = diffuseLightingGouraud(surface, surface.intersectedTriangle.vertices[1], surface.intersectedTriangle.vertex_normals[1]);
+	float c = diffuseLightingGouraud(surface, surface.intersectedTriangle.vertices[2], surface.intersectedTriangle.vertex_normals[2]);
+
+	float w1 = (a + b) / 2;
+	float w2 = (a + c) / 2;
+	float p = a + w1 * (b - a) + w2 * (c - a);
+	if (p > 1) return 1;
+	else return p;
 }
 
 // Draws a line from point a to b
@@ -568,17 +619,24 @@ void renderRayTracedScene(DrawingWindow& window) {
 			rayDirection = rayDirection * cameraOrientation;
 
 			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection);
+			float brightness = 1;
 			
 			// Colours hard shadows black
-			if (lightingMode == 1) closestIntersection.intersectedTriangle.colour = convertShadow(closestIntersection);
+			if (lightingMode == 1) brightness = hardShadowLighting(closestIntersection);
 
 			// Colours pixels based on how far from light source (Proximity lighting)
-			if (lightingMode == 2) closestIntersection.intersectedTriangle.colour = calculateBrightness(closestIntersection, diffuseLighting(closestIntersection));
+			if (lightingMode == 2) brightness = proximityLighting(closestIntersection);
 
-			if (lightingMode == 3) closestIntersection.intersectedTriangle.colour = calculateBrightness(closestIntersection, specularLighting(closestIntersection));
+			// Colours pixels based on how far from light source (Proximity lighting)
+			if (lightingMode == 3) brightness = diffuseLighting(closestIntersection);
 
+			// specular lighting on surface
+			if (lightingMode == 4) brightness = specularLighting(closestIntersection);
 
-			window.setPixelColour(x, y, convertColour(closestIntersection.intersectedTriangle.colour));
+			// utilization of all lighting effects
+			if (lightingMode == 5) brightness = allLighting(closestIntersection);
+
+			window.setPixelColour(x, y, convertColour(calculateBrightness(closestIntersection, brightness, false)));
 
 		}
 	}
