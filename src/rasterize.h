@@ -9,6 +9,7 @@ vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
 vector<uint32_t> getColourMap(vector<float> t0, vector<float> t1, int steps, vector<vector<uint32_t>> sortedTexture);
 CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale, mat3 cameraOrientation);
 
+vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 
 // designates maximum and minimum x values spanning all y values in a triangle
 // Inputs MUST be sorted in order of ascending y values
@@ -160,7 +161,7 @@ std::vector<CanvasPoint> findTexturemid(std::vector<CanvasPoint> sorted) {
 }
 
 // Draws filled triangle taking into account depth buffer
-void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour, vector<vector<float>> depthBuffer) {
+void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
 	// Creates a template structure for storing all points which will be sorted
 	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
 	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
@@ -220,22 +221,20 @@ CanvasTriangle generateRandomTriangle() {
 	return triangle;
 }
 
-void randomFilledTriangle(DrawingWindow& window, vector<vector<float>> depthBuffer) {
-	drawFilledTriangle(window, generateRandomTriangle(), Colour{ rand() % 256, rand() % 256, rand() % 256 }, depthBuffer);
+void randomFilledTriangle(DrawingWindow& window) {
+	drawFilledTriangle(window, generateRandomTriangle(), Colour{ rand() % 256, rand() % 256, rand() % 256 });
 }
 
 // renders scene using rasterization
-void renderRasterizedScene(DrawingWindow& window, vec3 cameraPos, vector<ModelTriangle> triangles, float focalLength, float scaleFactor, mat3 cameraOrientation, vector<vector<float>> depthBuffer) {
+void renderRasterizedScene(DrawingWindow& window, vec3 cameraPos, vector<ModelTriangle> triangles, float focalLength, float scaleFactor, mat3 cameraOrientation) {
 	window.clearPixels();
-	vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
-
 
 	for (int i = 0; i < triangles.size(); i++) {
 		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, scaleFactor, cameraOrientation);
 		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, scaleFactor, cameraOrientation);
 		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, scaleFactor, cameraOrientation);
-		drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour, depthBuffer);
+		drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 	}
 
-	vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
+	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
 }

@@ -28,7 +28,7 @@ using namespace glm;
 TextureMap texture = TextureMap("texture.ppm");
 vec3 cameraPos(0.0, 0, 4.0);
 float focalLength = 2;
-int renderMode = 0;
+int renderMode = 1;
 int lightingMode = 5;
 float scaleFactor = 350;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
@@ -44,12 +44,18 @@ vector<ModelTriangle> triangles = unloadobjFile("cornell-box.obj", 0.17, c);
 
 void draw(DrawingWindow& window) {
 	window.clearPixels();
+
+	if (renderMode == 0) renderWireFrame(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
+	if (renderMode == 1) renderRasterizedScene(window, cameraPos, triangles, focalLength, scaleFactor, cameraOrientation);
+	//if (renderMode == 2) renderRayTracedScene(window, cameraPos, cameraOrientation, triangles, light, lightingMode, focalLength, scaleFactor);
+
 	if (orbit){
 		cameraPos = cameraPos * rotateMatrixY(0.05);
 		cameraOrientation = lookat(cameraPos);
 	}
 }
 
+// handles keypresses to do certain events
 void handleEvent(SDL_Event event, DrawingWindow& window) {
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_LEFT) cameraOrientation = cameraOrientation * rotateMatrixY(0.05);
@@ -82,10 +88,7 @@ void handleEvent(SDL_Event event, DrawingWindow& window) {
 
 		else if (event.key.keysym.sym == SDLK_u) randomStrokedTriangle(window); // draws a random unfilled triangle on screen
 
-		else if (event.key.keysym.sym == SDLK_j) {
-			vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
-			randomFilledTriangle(window, depthBuffer);
-		}// draws a random filled triangle on screen
+		else if (event.key.keysym.sym == SDLK_j) randomFilledTriangle(window); // draws a random filled triangle on screen
 
 	}
 	else if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -103,9 +106,7 @@ int main(int argc, char* mrgv[]) {
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		if (renderMode == 0) renderWireFrame(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
-		if (renderMode == 1) renderRasterizedScene(window, cameraPos, triangles, focalLength, scaleFactor, cameraOrientation);
-		//if (renderMode == 2) renderRayTracedScene(window, cameraPos, cameraOrientation, triangles, light, lightingMode, focalLength, scaleFactor);
+		draw(window);
 
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
