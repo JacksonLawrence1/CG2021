@@ -166,7 +166,7 @@ std::vector<uint32_t> getColourMap(std::vector<float> t0, std::vector<float> t1,
 	CanvasPoint tc0(t0[0], t0[1]);
 	CanvasPoint tc1(t1[0], t1[1]);
 
-	std::vector<std::vector<float>> point_to_point = interpolateLineSteps(tc0, tc1, steps);
+	std::vector<std::vector<float>> point_to_point = interpolateCoordinates(tc0, tc1, steps);
 	std::vector<uint32_t> colourMap;
 	for (int i = 0; i < point_to_point.size(); i++) {
 		colourMap.push_back(sortedTexture[round(point_to_point[i][1])][round(point_to_point[i][0])]);

@@ -28,8 +28,8 @@ vector<vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, CanvasPoint p2,
 	std::vector<float> xDepthMin;
 	std::vector<float> xDepthMax;
 
-	std::vector<std::vector<float>> top_to_left_edge = interpolateLineSteps(p0, p1, p2.y - p0.y);
-	std::vector<std::vector<float>> top_to_right_edge = interpolateLineSteps(p0, p2, p2.y - p0.y);
+	std::vector<std::vector<float>> top_to_left_edge = interpolateCoordinates(p0, p1, p2.y - p0.y);
+	std::vector<std::vector<float>> top_to_right_edge = interpolateCoordinates(p0, p2, p2.y - p0.y);
 
 	// Gets x value ranges for 'top' portion of triangle
 	for (int i = p0.y; i < p2.y; i++) {
@@ -39,8 +39,8 @@ vector<vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, CanvasPoint p2,
 		xDepthMax.push_back(top_to_right_edge[round(i - p0.y)][2]);
 	}
 
-	std::vector<std::vector<float>> left_to_bot = interpolateLineSteps(p1, p3, p3.y - p2.y);
-	std::vector<std::vector<float>> right_to_bot = interpolateLineSteps(p2, p3, p3.y - p2.y);
+	std::vector<std::vector<float>> left_to_bot = interpolateCoordinates(p1, p3, p3.y - p2.y);
+	std::vector<std::vector<float>> right_to_bot = interpolateCoordinates(p2, p3, p3.y - p2.y);
 
 	// Gets x value ranges for 'bottom' portion of triangle
 	for (int i = p2.y; i < p3.y; i++) {
@@ -68,8 +68,8 @@ vector<vector<vector<float>>> getInterpolatedRanges(vector<CanvasPoint> sorted) 
 	CanvasPoint t2(sorted[2].texturePoint.x, sorted[2].texturePoint.y);
 	CanvasPoint t3(sorted[3].texturePoint.x, sorted[3].texturePoint.y);
 
-	std::vector<std::vector<float>> top_to_left_tex = interpolateLineSteps(t0, t1, sorted[1].y - sorted[0].y);
-	std::vector<std::vector<float>> top_to_right_tex = interpolateLineSteps(t0, t2, sorted[1].y - sorted[0].y);
+	std::vector<std::vector<float>> top_to_left_tex = interpolateCoordinates(t0, t1, sorted[1].y - sorted[0].y);
+	std::vector<std::vector<float>> top_to_right_tex = interpolateCoordinates(t0, t2, sorted[1].y - sorted[0].y);
 
 	// Gets x value ranges for 'top' portion of triangle
 	for (int i = 0; i < sorted[1].y - sorted[0].y; i++) {
@@ -77,8 +77,8 @@ vector<vector<vector<float>>> getInterpolatedRanges(vector<CanvasPoint> sorted) 
 		rightCoordinate.push_back({ top_to_right_tex[i][0], top_to_right_tex[i][1] });
 	}
 
-	std::vector<std::vector<float>> left_to_bot_tex = interpolateLineSteps(t1, t3, sorted[3].y - sorted[1].y);
-	std::vector<std::vector<float>> right_to_bot_tex = interpolateLineSteps(t2, t3, sorted[3].y - sorted[1].y);
+	std::vector<std::vector<float>> left_to_bot_tex = interpolateCoordinates(t1, t3, sorted[3].y - sorted[1].y);
+	std::vector<std::vector<float>> right_to_bot_tex = interpolateCoordinates(t2, t3, sorted[3].y - sorted[1].y);
 
 	// Gets x value ranges for 'bottom' portion of triangle
 	for (int i = 0; i < sorted[3].y - sorted[1].y; i++) {
@@ -117,7 +117,7 @@ vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint v2) {
 	// placeholder for texture 
 	sorted[3].texturePoint = TexturePoint(-1, -1);
 
-	std::vector<std::vector<float>> longEdge = interpolateLineSteps(sorted[0], sorted[2], sorted[2].y - sorted[0].y);
+	std::vector<std::vector<float>> longEdge = interpolateCoordinates(sorted[0], sorted[2], sorted[2].y - sorted[0].y);
 
 	// Gets vertex opposite of middle corner
 	for (int i = 0; i < longEdge.size(); i++) {
@@ -160,27 +160,62 @@ void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour c
 
 void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<std::vector<uint32_t>> texture) {
 	int rows = points[2].y - points[0].y;
+	CanvasPoint texture0 = CanvasPoint(points[0].texturePoint.x, points[0].texturePoint.y);
+	CanvasPoint texture1 = CanvasPoint(points[1].texturePoint.x, points[1].texturePoint.y);
+	CanvasPoint texture2 = CanvasPoint(points[2].texturePoint.x, points[2].texturePoint.y);
+
 	vector<float> topToMid = interpolateSingleFloats(points[0].x, points[1].x, rows);
-	vector<float> textureTopToMidx = interpolateSingleFloats(points[0].texturePoint.x, points[1].texturePoint.x, rows);
-	vector<float> textureTopToMidy = interpolateSingleFloats(points[0].texturePoint.y, points[1].texturePoint.y, rows);
+	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture0, texture1, rows);
 	
 	vector<float> topToBot = interpolateSingleFloats(points[0].x, points[2].x, rows);
-	vector<float> textureTopToBotx = interpolateSingleFloats(points[0].texturePoint.x, points[2].texturePoint.x, rows);
-	vector<float> textureTopToBoty = interpolateSingleFloats(points[0].texturePoint.y, points[2].texturePoint.y, rows);
+	vector<vector<float>> textureTopToBot = interpolateCoordinates(texture0, texture2, rows);
 
 	for (int y = 0; y < rows; y++) {
-		int numPixelsInRow = topToMid[y] - topToBot[y];
+		int rowPixels = abs(topToMid[y] - topToBot[y]);
+		CanvasPoint t0(textureTopToBot[y][0], textureTopToBot[y][1]);
+		CanvasPoint t1(textureTopToMid[y][0], textureTopToMid[y][1]);
 
-		vector<float> xScaleTexture = interpolateSingleFloats(textureTopToMidx[y], textureTopToBotx[y], numPixelsInRow);
-		vector<float> yScaleTexture = interpolateSingleFloats(textureTopToMidy[y], textureTopToBoty[y], numPixelsInRow);
+		vector<vector<float>> scaleTexture = interpolateCoordinates(t1, t0, rowPixels);
 
-		for (int x = 0; x < numPixelsInRow; x++) {
-			uint32_t colour = convertColour(Colour(255, 255, 255));
-			window.setPixelColour(topToBot[y] + x, points[0].y + y, colour);
-			//window.setPixelColour(points[0].y + y, topToMid[y] + x, colour);
+		for (int x = 0; x < rowPixels; x++) {
+			int a = round(scaleTexture[x][0]);
+			int b = round(scaleTexture[x][1]);
+
+			uint32_t colour = texture[b][a];
+			window.setPixelColour(topToMid[y] + x, points[0].y + y, colour);
 		}
 	}
 }
+
+void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<vector<uint32_t>> texture) {
+	int rows = points[2].y - points[0].y;
+	CanvasPoint texture0 = CanvasPoint(points[0].texturePoint.x, points[0].texturePoint.y);
+	CanvasPoint texture1 = CanvasPoint(points[1].texturePoint.x, points[1].texturePoint.y);
+	CanvasPoint texture2 = CanvasPoint(points[2].texturePoint.x, points[2].texturePoint.y);
+
+	vector<float> topToBot = interpolateSingleFloats(points[0].x, points[2].x, rows);
+	vector<vector<float>> textureTopToBot = interpolateCoordinates(texture0, texture2, rows);
+
+	vector<float> topToMid = interpolateSingleFloats(points[1].x, points[2].x, rows);
+	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture1, texture2, rows);
+
+	for (int y = 0; y < rows; y++) {
+		int rowPixels = abs(topToMid[y] - topToBot[y]);
+		CanvasPoint t0(textureTopToBot[y][0], textureTopToBot[y][1]);
+		CanvasPoint t1(textureTopToMid[y][0], textureTopToMid[y][1]);
+
+		vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+
+		for (int x = 0; x < rowPixels; x++) {
+			int a = round(scaleTexture[x][0]);
+			int b = round(scaleTexture[x][1]);
+
+			uint32_t colour = texture[b][a];
+			window.setPixelColour(topToBot[y] + x, points[0].y + y, colour);
+		}
+	}
+}
+
 
 void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, TextureMap texture) {
 	vector<std::vector<uint32_t>> sortedTexture = unloadTexture(texture);
@@ -195,7 +230,7 @@ void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, Textur
 	// get proportion to mid point to calculate midpoint on texture
 	float topToBot = sqrt(a0*a0 + b0*b0);
 	float topToMid = sqrt(a1*a1 + b1*b1);
-	float midProportion = topToBot / topToMid;
+	float midProportion = topToMid / topToBot;
 
 	// calculate equivalent midpoint on texture
 	sorted[3].texturePoint.x = round(((sorted[2].texturePoint.x - sorted[0].texturePoint.x) * midProportion) + sorted[0].texturePoint.x);
@@ -205,6 +240,7 @@ void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, Textur
 	vector<CanvasPoint> botTriangle = { sorted[1], sorted[3], sorted[2] };
 
 	drawTopTriangle(window, topTriangle, sortedTexture);
+	drawBotTriangle(window, botTriangle, sortedTexture);
 }
 
 
@@ -251,12 +287,12 @@ void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangle
 	
 
 	TextureMap texture = TextureMap("texture.ppm");
-	CanvasPoint pos0(150, 5);
-	CanvasPoint pos1(5, 210);
-	CanvasPoint pos2(300, 120);
-	pos0.texturePoint = TexturePoint(10, 10);
-	pos1.texturePoint = TexturePoint(10, 250);
-	pos2.texturePoint = TexturePoint(460, 370);
+	CanvasPoint pos0(160, 10);
+	CanvasPoint pos1(300, 230);
+	CanvasPoint pos2(10, 150);
+	pos0.texturePoint = TexturePoint(195, 5);
+	pos1.texturePoint = TexturePoint(395, 380);
+	pos2.texturePoint = TexturePoint(65, 330);
 	drawTexturedTriangle(window, CanvasTriangle(pos0, pos1, pos2), texture);
 
 
