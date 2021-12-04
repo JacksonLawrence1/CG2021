@@ -4,15 +4,6 @@ using namespace glm;
 #define WIDTH 320
 #define HEIGHT 240
 
-// Finds equivalent vertex point on window 
-CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale, mat3 cameraOrientation) {
-	glm::vec3 correctedVertices = vertexPosition - cameraPosition;
-	correctedVertices = correctedVertices * cameraOrientation;
-	float u = (focalLength * (correctedVertices[0] / correctedVertices[2]) * -scale) + (WIDTH / 2);
-	float v = (focalLength * (correctedVertices[1] / correctedVertices[2]) * scale) + (HEIGHT / 2);
-	return CanvasPoint(round(u), round(v), correctedVertices[2]);
-}
-
 // Finds closest triangle that intersects 
 RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, vector<ModelTriangle> triangles, int triangleIndex = -1) {
 	RayTriangleIntersection currentClosest;
@@ -36,6 +27,8 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 				currentClosest.intersectedTriangle = triangles[i];
 				currentClosest.triangleIndex = i;
 				currentClosest.intersectionPoint = glm::vec3(triangles[i].vertices[0] + (u * e0) + (v * e1));
+				currentClosest.u = u;
+				currentClosest.v = v;
 			}
 		}
 	}
@@ -43,7 +36,7 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 }
 
 // renders scene using ray-tracing
-void renderRayTracedScene(DrawingWindow& window, vec3 cameraPos, mat3 cameraOrientation, vector<ModelTriangle> triangles, vec3 light, int lightingMode, float focalLength, float scaleFactor) {
+void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles, vec3 cameraPos, mat3 cameraOrientation, vec3 light, int lightingMode, float focalLength, float scaleFactor) {
 	window.clearPixels();
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
@@ -65,18 +58,18 @@ void renderRayTracedScene(DrawingWindow& window, vec3 cameraPos, mat3 cameraOrie
 			if (lightingMode == 1) brightness = hardShadowLighting(closestIntersection, triangles, light);
 
 			// Colours pixels based on how far from light source (Proximity lighting)
-			if (lightingMode == 2) brightness = proximityLighting(closestIntersection, light);
-
-			// Colours pixels based on how far from light source (Proximity lighting)
-			if (lightingMode == 3) brightness = diffuseLighting(closestIntersection, light);
-
-			// specular lighting on surface
-			if (lightingMode == 4) brightness = specularLighting(closestIntersection, cameraPos, light);
+			if (lightingMode == 2) brightness = diffuseLighting(closestIntersection, light);
 
 			// utilization of all lighting effects
-			if (lightingMode == 5) brightness = allLighting(closestIntersection, cameraPos, triangles, light);
+			if (lightingMode == 3) brightness = allLighting(closestIntersection, cameraPos, triangles, light);
 
-			window.setPixelColour(x, y, convertColour(calculateBrightness(closestIntersection, brightness, false)));
+			// OPTIONAL :: add hard shadow
+			if (lightingMode == 4) brightness = gouraudShade(closestIntersection, cameraPos, light);
+
+			// OPTIONAL :: add hard shadow
+			if (lightingMode == 5) brightness = phongShade(closestIntersection, cameraPos, light);
+
+			window.setPixelColour(x, y, convertColour(calculateBrightness(closestIntersection, brightness, true)));
 
 		}
 	}

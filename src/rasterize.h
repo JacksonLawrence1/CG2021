@@ -7,9 +7,16 @@ using namespace glm;
 uint32_t convertColour(Colour colour);
 vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
 vector<uint32_t> getColourMap(vector<float> t0, vector<float> t1, int steps, vector<vector<uint32_t>> sortedTexture);
-CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale, mat3 cameraOrientation);
-
 vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
+
+// Finds equivalent vertex point on window 
+CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 vertexPosition, float focalLength, float scale, mat3 cameraOrientation) {
+	glm::vec3 correctedVertices = vertexPosition - cameraPosition;
+	correctedVertices = correctedVertices * cameraOrientation;
+	float u = (focalLength * (correctedVertices[0] / correctedVertices[2]) * -scale) + (WIDTH / 2);
+	float v = (focalLength * (correctedVertices[1] / correctedVertices[2]) * scale) + (HEIGHT / 2);
+	return CanvasPoint(round(u), round(v), correctedVertices[2]);
+}
 
 // designates maximum and minimum x values spanning all y values in a triangle
 // Inputs MUST be sorted in order of ascending y values
@@ -194,9 +201,9 @@ void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, Textur
 	for (int y = sorted[0].y; y < sorted[3].y; y++) {
 		CanvasPoint p0(range[y - sorted[0].y][0][0], range[y - sorted[0].y][0][1]);
 		CanvasPoint p1(range[y - sorted[0].y][1][0], range[y - sorted[0].y][1][1]);
-		auto test0 = range[y - sorted[0].y][0];
-		auto test1 = range[y - sorted[0].y][1];
-		std::vector<uint32_t> currentLineColour = getColourMap(test0, test1, xRange[y - sorted[0].y][1] - xRange[y - sorted[0].y][0] + 10, sortedTexture);
+		vector<float> t0 = range[y - sorted[0].y][0];
+		vector<float> t1 = range[y - sorted[0].y][1];
+		std::vector<uint32_t> currentLineColour = getColourMap(t0, t1, xRange[y - sorted[0].y][1] - xRange[y - sorted[0].y][0], sortedTexture);
 		for (int x = round(xRange[y - sorted[0].y][0]); x < round(xRange[y - sorted[0].y][1]); x++) {
 			auto test3 = x - xRange[y - sorted[0].y][0];
 			if (currentLineColour.size() != 0) { window.setPixelColour(x, y, currentLineColour[test3]); }
@@ -226,7 +233,7 @@ void randomFilledTriangle(DrawingWindow& window) {
 }
 
 // renders scene using rasterization
-void renderRasterizedScene(DrawingWindow& window, vec3 cameraPos, vector<ModelTriangle> triangles, float focalLength, float scaleFactor, mat3 cameraOrientation) {
+void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangles, vec3 cameraPos, float focalLength, float scaleFactor, mat3 cameraOrientation) {
 	window.clearPixels();
 
 	for (int i = 0; i < triangles.size(); i++) {

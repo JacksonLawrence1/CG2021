@@ -6,7 +6,9 @@ RayTriangleIntersection::RayTriangleIntersection(const glm::vec3 &point, float d
 		distanceFromCamera(distance),
 		intersectedTriangle(triangle),
 		triangleIndex(index),
-		vertex_normals() {}
+		vertex_normals(), 
+		u(),
+		v() {}
 		
 
 std::ostream &operator<<(std::ostream &os, const RayTriangleIntersection &intersection) {
