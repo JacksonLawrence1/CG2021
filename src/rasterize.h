@@ -7,6 +7,8 @@ using namespace glm;
 uint32_t convertColour(Colour colour);
 vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
 vector<uint32_t> getColourMap(vector<float> t0, vector<float> t1, int steps, vector<vector<uint32_t>> sortedTexture);
+void drawTextureTriangle(DrawingWindow window, CanvasTriangle triangle, string filename);
+
 vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 
 // Finds equivalent vertex point on window 
@@ -20,7 +22,7 @@ CanvasPoint getCanvasIntersectionPoint(glm::vec3 cameraPosition, glm::vec3 verte
 
 // designates maximum and minimum x values spanning all y values in a triangle
 // Inputs MUST be sorted in order of ascending y values
-std::vector<std::vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, CanvasPoint p2, CanvasPoint p3) {
+vector<vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, CanvasPoint p2, CanvasPoint p3) {
 	std::vector<float> xMins;
 	std::vector<float> xMaxs;
 	std::vector<float> xDepthMin;
@@ -57,7 +59,7 @@ std::vector<std::vector<float>> getxRanges(CanvasPoint p0, CanvasPoint p1, Canva
 }
 
 // Gets min and max coordinates of texture, for equivalent y coordinates in triangle
-std::vector<std::vector<std::vector<float>>> getInterpolatedRanges(std::vector<CanvasPoint> sorted) {
+vector<vector<vector<float>>> getInterpolatedRanges(vector<CanvasPoint> sorted) {
 	std::vector<std::vector<float>> leftCoordinate;
 	std::vector<std::vector<float>> rightCoordinate;
 
@@ -94,7 +96,7 @@ std::vector<std::vector<std::vector<float>>> getInterpolatedRanges(std::vector<C
 
 // Sorts points according to y value (smallest to largest)
 // also creates 4th point which is opposite the 'middle' point
-std::vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint v2) {
+vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint v2) {
 	std::vector<CanvasPoint> sorted = { {v0.x, v0.y, v0.depth}, // top point
 										{v1.x, v1.y, v1.depth}, // middle point
 										{v2.x, v2.y, v2.depth}, // bottom point
@@ -112,6 +114,7 @@ std::vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint 
 	sorted[3].y = sorted[1].y;
 	sorted[3].x = sorted[2].x;
 	sorted[3].depth = sorted[1].depth;
+	// placeholder for texture 
 	sorted[3].texturePoint = TexturePoint(-1, -1);
 
 	std::vector<std::vector<float>> longEdge = interpolateLineSteps(sorted[0], sorted[2], sorted[2].y - sorted[0].y);
@@ -119,50 +122,10 @@ std::vector<CanvasPoint> sortPoints(CanvasPoint v0, CanvasPoint v1, CanvasPoint 
 	// Gets vertex opposite of middle corner
 	for (int i = 0; i < longEdge.size(); i++) {
 		if (longEdge[i][1] == sorted[1].y) {
-			sorted[3].x = longEdge[i][0];
+			sorted[3].x = round(longEdge[i][0]);
 			sorted[3].depth = longEdge[i][2];
 		}
 	}
-
-	// Leftmost point deemed by sorted[1], rightmost deemed by sorted[2]
-	if (sorted[1].x > sorted[3].x) {
-		std::swap(sorted[1], sorted[3]);
-		std::swap(sorted[2], sorted[3]);
-	}
-	else { std::swap(sorted[2], sorted[3]); }
-
-	return sorted;
-}
-
-// Converts a texture point purely into a canvas point just by exchanging x and y values
-CanvasPoint convertTexturePoint(TexturePoint texturePoint) {
-	CanvasPoint canvas{ texturePoint.x, texturePoint.y };
-	return canvas;
-}
-
-// finds equivalent texture midpoint triangle on texture
-std::vector<CanvasPoint> findTexturemid(std::vector<CanvasPoint> sorted) {
-	bool swap = false;
-	if ((sorted[1].texturePoint.x == -1) && (sorted[1].texturePoint.y == -1)) {
-		std::swap(sorted[1], sorted[2]);
-		swap = true;
-	}
-	std::vector<CanvasPoint> sorted_textures = sortPoints(convertTexturePoint(sorted[0].texturePoint),
-		convertTexturePoint(sorted[1].texturePoint), convertTexturePoint(sorted[3].texturePoint));
-	if ((sorted_textures[2].texturePoint.x == -1) && (sorted_textures[2].texturePoint.y == -1)) {
-		std::swap(sorted_textures[1], sorted_textures[2]);
-	}
-
-	float height_tex = abs(sorted_textures[3].y - sorted_textures[0].y);
-	float height = abs(sorted[3].y - sorted[0].y);
-	float width_tex = abs(sorted_textures[0].x - sorted_textures[3].x);
-	float width = abs(sorted[3].x - sorted[0].x);
-	float yfactor = height_tex / height;
-	float xfactor = width_tex / width;
-
-	sorted[2].texturePoint.x = round(sorted[2].x * xfactor);
-	sorted[2].texturePoint.y = round(sorted[2].y * yfactor);
-	if (swap) { std::swap(sorted[1], sorted[2]); }
 
 	return sorted;
 }
@@ -171,6 +134,13 @@ std::vector<CanvasPoint> findTexturemid(std::vector<CanvasPoint> sorted) {
 void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour colour) {
 	// Creates a template structure for storing all points which will be sorted
 	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
+
+	// Leftmost point deemed by sorted[1], rightmost deemed by sorted[2]
+	if (sorted[1].x > sorted[3].x) {
+		std::swap(sorted[1], sorted[3]);
+		std::swap(sorted[2], sorted[3]);
+	}
+	else { std::swap(sorted[2], sorted[3]); }
 	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
 
 	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
@@ -188,30 +158,55 @@ void drawFilledTriangle(DrawingWindow& window, CanvasTriangle triangle, Colour c
 	}
 }
 
-// Draws a triangle filled in with a texture
-void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, TextureMap texture) {
-	std::vector<std::vector<uint32_t>> sortedTexture = unloadTexture(texture);
+void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<std::vector<uint32_t>> texture) {
+	int rows = points[2].y - points[0].y;
+	vector<float> topToMid = interpolateSingleFloats(points[0].x, points[1].x, rows);
+	vector<float> textureTopToMidx = interpolateSingleFloats(points[0].texturePoint.x, points[1].texturePoint.x, rows);
+	vector<float> textureTopToMidy = interpolateSingleFloats(points[0].texturePoint.y, points[1].texturePoint.y, rows);
+	
+	vector<float> topToBot = interpolateSingleFloats(points[0].x, points[2].x, rows);
+	vector<float> textureTopToBotx = interpolateSingleFloats(points[0].texturePoint.x, points[2].texturePoint.x, rows);
+	vector<float> textureTopToBoty = interpolateSingleFloats(points[0].texturePoint.y, points[2].texturePoint.y, rows);
 
-	std::vector<CanvasPoint> sorted = sortPoints(triangle.v0(), triangle.v1(), triangle.v2());
-	std::vector<std::vector<float>> xRange = getxRanges(sorted[0], sorted[1], sorted[2], sorted[3]);
-	sorted = findTexturemid(sorted);
-	std::vector<std::vector<std::vector<float>>> range = getInterpolatedRanges(sorted);
+	for (int y = 0; y < rows; y++) {
+		int numPixelsInRow = topToMid[y] - topToBot[y];
 
-	// Draws triangle by iterating through y and then only drawing if x values are in particular range given the y (marked)
-	for (int y = sorted[0].y; y < sorted[3].y; y++) {
-		CanvasPoint p0(range[y - sorted[0].y][0][0], range[y - sorted[0].y][0][1]);
-		CanvasPoint p1(range[y - sorted[0].y][1][0], range[y - sorted[0].y][1][1]);
-		vector<float> t0 = range[y - sorted[0].y][0];
-		vector<float> t1 = range[y - sorted[0].y][1];
-		std::vector<uint32_t> currentLineColour = getColourMap(t0, t1, xRange[y - sorted[0].y][1] - xRange[y - sorted[0].y][0], sortedTexture);
-		for (int x = round(xRange[y - sorted[0].y][0]); x < round(xRange[y - sorted[0].y][1]); x++) {
-			auto test3 = x - xRange[y - sorted[0].y][0];
-			if (currentLineColour.size() != 0) { window.setPixelColour(x, y, currentLineColour[test3]); }
+		vector<float> xScaleTexture = interpolateSingleFloats(textureTopToMidx[y], textureTopToBotx[y], numPixelsInRow);
+		vector<float> yScaleTexture = interpolateSingleFloats(textureTopToMidy[y], textureTopToBoty[y], numPixelsInRow);
+
+		for (int x = 0; x < numPixelsInRow; x++) {
+			uint32_t colour = convertColour(Colour(255, 255, 255));
+			window.setPixelColour(topToBot[y] + x, points[0].y + y, colour);
+			//window.setPixelColour(points[0].y + y, topToMid[y] + x, colour);
 		}
 	}
-	//Colour white{ 255, 255, 255 };
-	//drawStrokedTriangle(window, triangle, white);
 }
+
+void drawTexturedTriangle(DrawingWindow& window, CanvasTriangle triangle, TextureMap texture) {
+	vector<std::vector<uint32_t>> sortedTexture = unloadTexture(texture);
+
+	// sorted[0-2] of ascending y values, sorted[3] is always the midpoint
+	vector<CanvasPoint> sorted = sortPoints(triangle.vertices[0], triangle.vertices[1], triangle.vertices[2]);
+	float a0 = sorted[0].x - sorted[2].x; 
+	float b0 = sorted[0].y - sorted[2].y;
+	float a1 = sorted[0].x - sorted[3].x; 
+	float b1 = sorted[0].y - sorted[3].y;
+
+	// get proportion to mid point to calculate midpoint on texture
+	float topToBot = sqrt(a0*a0 + b0*b0);
+	float topToMid = sqrt(a1*a1 + b1*b1);
+	float midProportion = topToBot / topToMid;
+
+	// calculate equivalent midpoint on texture
+	sorted[3].texturePoint.x = round(((sorted[2].texturePoint.x - sorted[0].texturePoint.x) * midProportion) + sorted[0].texturePoint.x);
+	sorted[3].texturePoint.y = round(((sorted[2].texturePoint.y - sorted[0].texturePoint.y) * midProportion) + sorted[0].texturePoint.y);
+
+	vector<CanvasPoint> topTriangle = { sorted[0], sorted[1], sorted[3] };
+	vector<CanvasPoint> botTriangle = { sorted[1], sorted[3], sorted[2] };
+
+	drawTopTriangle(window, topTriangle, sortedTexture);
+}
+
 
 // Generates a triangle with random vertices in the form CanvasTriangle
 CanvasTriangle generateRandomTriangle() {
@@ -236,12 +231,34 @@ void randomFilledTriangle(DrawingWindow& window) {
 void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangles, vec3 cameraPos, float focalLength, float scaleFactor, mat3 cameraOrientation) {
 	window.clearPixels();
 
+	/*
 	for (int i = 0; i < triangles.size(); i++) {
 		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, scaleFactor, cameraOrientation);
 		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, scaleFactor, cameraOrientation);
 		CanvasPoint pos2 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[2], focalLength, scaleFactor, cameraOrientation);
-		drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
+		if (triangles[i].colour.texture == false) {
+			drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
+		}
+		else if (triangles[i].colour.texture == true) {
+			TextureMap texture = TextureMap("texture.ppm");
+			pos0.texturePoint = triangles[i].texturePoints[0];
+			pos1.texturePoint = triangles[i].texturePoints[1];
+			pos2.texturePoint = triangles[i].texturePoints[2];
+			drawTexturedTriangle(window, CanvasTriangle(pos0, pos1, pos2), texture);
+		}
 	}
+	*/
+	
+
+	TextureMap texture = TextureMap("texture.ppm");
+	CanvasPoint pos0(150, 5);
+	CanvasPoint pos1(5, 210);
+	CanvasPoint pos2(300, 120);
+	pos0.texturePoint = TexturePoint(10, 10);
+	pos1.texturePoint = TexturePoint(10, 250);
+	pos2.texturePoint = TexturePoint(460, 370);
+	drawTexturedTriangle(window, CanvasTriangle(pos0, pos1, pos2), texture);
+
 
 	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
 }

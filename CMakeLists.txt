@@ -44,7 +44,7 @@ add_executable(main
         src/raytrace.h
         src/camera.h 
         src/interpolate.h
-        src/lighting.h)
+        src/lighting.h )
 
 if (MSVC)
     target_compile_options(main

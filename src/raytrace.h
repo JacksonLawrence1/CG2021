@@ -47,8 +47,7 @@ void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles
 			float v = -((y + cameraPos.y) - HEIGHT / 2) / scaleFactor;
 
 			// Adjusts direction in accordance to camera orientation and position
-			vec3 rayDirection(u, v, cameraPos.z - focalLength);
-			rayDirection = rayDirection - cameraPos;
+			vec3 rayDirection(u, v, -focalLength);
 			rayDirection = rayDirection * cameraOrientation;
 
 			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection, triangles);
