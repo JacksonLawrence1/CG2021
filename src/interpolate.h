@@ -30,8 +30,6 @@ vector<vec3> interpolateThreeElementValues(glm::vec3 from, glm::vec3 to, int num
 
 // gets appropriate window coords for the line specified but will divide into specified chunks
 vector<vector<float>> interpolateCoordinates(CanvasPoint from, CanvasPoint to, int steps) {
-	float xDiff = to.x - from.x;
-	float yDiff = to.y - from.y;
 	vector<float> xList = interpolateSingleFloats(from.x, to.x, steps);
 	vector<float> yList = interpolateSingleFloats(from.y, to.y, steps);
 	vector<float> depthList = interpolateSingleFloats(from.depth, to.depth, steps);

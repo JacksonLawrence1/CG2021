@@ -111,13 +111,12 @@ int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-	draw(window);
-
 	//renderRayTracedScene(window, sphere, cameraPos, cameraOrientation, light, lightingMode, focalLength, scaleFactor);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
+		draw(window);
 
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();

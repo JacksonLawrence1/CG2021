@@ -173,3 +173,10 @@ std::vector<uint32_t> getColourMap(std::vector<float> t0, std::vector<float> t1,
 	}
 	return colourMap;
 }
+
+// scales texture point based on height and width of texture
+TexturePoint scaleTexturePoint(TextureMap texture, TexturePoint point) {
+	int height = texture.height;
+	int width = texture.width;
+	return TexturePoint(point.x * width, point.y * height);
+}

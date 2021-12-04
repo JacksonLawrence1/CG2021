@@ -8,6 +8,8 @@ uint32_t convertColour(Colour colour);
 vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
 vector<uint32_t> getColourMap(vector<float> t0, vector<float> t1, int steps, vector<vector<uint32_t>> sortedTexture);
 void drawTextureTriangle(DrawingWindow window, CanvasTriangle triangle, string filename);
+TexturePoint scaleTexturePoint(TextureMap texture, TexturePoint point);
+
 
 vector<vector<float>> depthBuffer(WIDTH, std::vector<float>(HEIGHT, 0));
 
@@ -164,31 +166,51 @@ void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<s
 	CanvasPoint texture1 = CanvasPoint(points[1].texturePoint.x, points[1].texturePoint.y);
 	CanvasPoint texture2 = CanvasPoint(points[2].texturePoint.x, points[2].texturePoint.y);
 
-	vector<float> topToMid = interpolateSingleFloats(points[0].x, points[1].x, rows);
-	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture0, texture1, rows);
+	vector<float> topToBot = interpolateSingleFloats(points[0].x, points[1].x, rows);
+	vector<vector<float>> textureTopToBot = interpolateCoordinates(texture0, texture1, rows);
 	
-	vector<float> topToBot = interpolateSingleFloats(points[0].x, points[2].x, rows);
-	vector<vector<float>> textureTopToBot = interpolateCoordinates(texture0, texture2, rows);
+	vector<float> topToMid = interpolateSingleFloats(points[0].x, points[2].x, rows);
+	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture0, texture2, rows);
 
 	for (int y = 0; y < rows; y++) {
-		int rowPixels = abs(topToMid[y] - topToBot[y]);
+		int rowPixels = topToMid[y] - topToBot[y];
 		CanvasPoint t0(textureTopToBot[y][0], textureTopToBot[y][1]);
 		CanvasPoint t1(textureTopToMid[y][0], textureTopToMid[y][1]);
 
-		vector<vector<float>> scaleTexture = interpolateCoordinates(t1, t0, rowPixels);
 
-		for (int x = 0; x < rowPixels; x++) {
-			int a = round(scaleTexture[x][0]);
-			int b = round(scaleTexture[x][1]);
+		if (rowPixels < 0) {
+			rowPixels = abs(rowPixels);
+			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
 
-			uint32_t colour = texture[b][a];
-			window.setPixelColour(topToMid[y] + x, points[0].y + y, colour);
+			for (int x = 0; x < rowPixels; x++) {
+				int a = round(scaleTexture[x][0]);
+				int b = round(scaleTexture[x][1]);
+
+				uint32_t colour = texture[b][a];
+				int xValue = topToBot[y] - x;
+				int yValue = points[0].y + y;
+				if (xValue < WIDTH && xValue > 0 && yValue < HEIGHT && yValue > 0) window.setPixelColour(xValue, yValue, colour);
+			}
+		}
+		else {
+			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+
+			for (int x = 0; x < rowPixels; x++) {
+				int a = round(scaleTexture[x][0]);
+				int b = round(scaleTexture[x][1]);
+
+				uint32_t colour = texture[b][a];
+				int xValue = topToBot[y] + x;
+				int yValue = points[0].y + y;
+				if (xValue < WIDTH && xValue > 0 && yValue < HEIGHT && yValue > 0) window.setPixelColour(xValue, yValue, colour);
+			}
 		}
 	}
 }
 
 void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<vector<uint32_t>> texture) {
 	int rows = points[2].y - points[0].y;
+
 	CanvasPoint texture0 = CanvasPoint(points[0].texturePoint.x, points[0].texturePoint.y);
 	CanvasPoint texture1 = CanvasPoint(points[1].texturePoint.x, points[1].texturePoint.y);
 	CanvasPoint texture2 = CanvasPoint(points[2].texturePoint.x, points[2].texturePoint.y);
@@ -200,18 +222,35 @@ void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<v
 	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture1, texture2, rows);
 
 	for (int y = 0; y < rows; y++) {
-		int rowPixels = abs(topToMid[y] - topToBot[y]);
+		int rowPixels = topToMid[y] - topToBot[y];
+
 		CanvasPoint t0(textureTopToBot[y][0], textureTopToBot[y][1]);
 		CanvasPoint t1(textureTopToMid[y][0], textureTopToMid[y][1]);
 
-		vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+		if (rowPixels < 0) {
+			rowPixels = abs(rowPixels);
+			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+			for (int x = 0; x < rowPixels; x++) {
+				int a = round(scaleTexture[x][0]);
+				int b = round(scaleTexture[x][1]);
 
-		for (int x = 0; x < rowPixels; x++) {
-			int a = round(scaleTexture[x][0]);
-			int b = round(scaleTexture[x][1]);
+				uint32_t colour = texture[b][a];
+				int xValue = topToBot[y] - x;
+				int yValue = points[0].y + y;
+				if (xValue < WIDTH && xValue > 0 && yValue < HEIGHT && yValue > 0) window.setPixelColour(xValue, yValue, colour);
+			}
+		}
+		else {
+			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+			for (int x = 0; x < rowPixels; x++) {
+				int a = round(scaleTexture[x][0]);
+				int b = round(scaleTexture[x][1]);
 
-			uint32_t colour = texture[b][a];
-			window.setPixelColour(topToBot[y] + x, points[0].y + y, colour);
+				uint32_t colour = texture[b][a];
+				int xValue = topToBot[y] + x;
+				int yValue = points[0].y + y;
+				if (xValue < WIDTH && xValue > 0 && yValue < HEIGHT && yValue > 0) window.setPixelColour(xValue, yValue, colour);
+			}
 		}
 	}
 }
@@ -266,8 +305,7 @@ void randomFilledTriangle(DrawingWindow& window) {
 // renders scene using rasterization
 void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangles, vec3 cameraPos, float focalLength, float scaleFactor, mat3 cameraOrientation) {
 	window.clearPixels();
-
-	/*
+	
 	for (int i = 0; i < triangles.size(); i++) {
 		CanvasPoint pos0 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[0], focalLength, scaleFactor, cameraOrientation);
 		CanvasPoint pos1 = getCanvasIntersectionPoint(cameraPos, triangles[i].vertices[1], focalLength, scaleFactor, cameraOrientation);
@@ -277,24 +315,12 @@ void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangle
 		}
 		else if (triangles[i].colour.texture == true) {
 			TextureMap texture = TextureMap("texture.ppm");
-			pos0.texturePoint = triangles[i].texturePoints[0];
-			pos1.texturePoint = triangles[i].texturePoints[1];
-			pos2.texturePoint = triangles[i].texturePoints[2];
+			pos0.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[0]);
+			pos1.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[1]);
+			pos2.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[2]);
 			drawTexturedTriangle(window, CanvasTriangle(pos0, pos1, pos2), texture);
 		}
 	}
-	*/
 	
-
-	TextureMap texture = TextureMap("texture.ppm");
-	CanvasPoint pos0(160, 10);
-	CanvasPoint pos1(300, 230);
-	CanvasPoint pos2(10, 150);
-	pos0.texturePoint = TexturePoint(195, 5);
-	pos1.texturePoint = TexturePoint(395, 380);
-	pos2.texturePoint = TexturePoint(65, 330);
-	drawTexturedTriangle(window, CanvasTriangle(pos0, pos1, pos2), texture);
-
-
 	depthBuffer = vector<vector<float>>(WIDTH, std::vector<float>(HEIGHT, 0));
 }
