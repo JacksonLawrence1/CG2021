@@ -7,6 +7,7 @@ RayTriangleIntersection::RayTriangleIntersection(const glm::vec3 &point, float d
 		intersectedTriangle(triangle),
 		triangleIndex(index),
 		vertex_normals(), 
+		material(),
 		u(),
 		v() {}
 		

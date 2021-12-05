@@ -29,6 +29,10 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 				currentClosest.intersectionPoint = glm::vec3(triangles[i].vertices[0] + (u * e0) + (v * e1));
 				currentClosest.u = u;
 				currentClosest.v = v;
+
+				Colour c = currentClosest.intersectedTriangle.colour;
+				if (c.blue == 255 && c.green == 0 && c.red == 0) currentClosest.material = 1;
+				else currentClosest.material = 0;
 			}
 		}
 	}
@@ -51,6 +55,16 @@ void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles
 			rayDirection = rayDirection * cameraOrientation;
 
 			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection, triangles);
+
+			Colour c = closestIntersection.intersectedTriangle.colour;
+
+			if (closestIntersection.material == 1) {
+				vec3 toLight = normalize(light - closestIntersection.intersectionPoint);
+				vec3 reflection = normalize(-vectorOfRecflection(closestIntersection, toLight));
+				RayTriangleIntersection newColour = getClosestIntersection(closestIntersection.intersectionPoint, reflection, triangles);
+				closestIntersection.intersectedTriangle.colour = newColour.intersectedTriangle.colour;
+			}
+
 			float brightness = 1;
 
 			// Colours hard shadows black

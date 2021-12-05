@@ -10,6 +10,7 @@ struct RayTriangleIntersection {
 	ModelTriangle intersectedTriangle;
 	size_t triangleIndex;
 	std::array<glm::vec3, 3> vertex_normals;
+	int material; // 0 for normal, 1 for reflection
 	float u;
 	float v;
 

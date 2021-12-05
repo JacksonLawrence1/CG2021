@@ -93,18 +93,21 @@ vector<ModelTriangle> unloadTextureFile(string fileName, float scalingFactor, ve
 	return v;
 }
 
-vector<ModelTriangle> unloadSphere(string fileName, float scalingFactor, Colour colour) {
+vector<ModelTriangle> unloadNewFile(string fileName, float scalingFactor, vector<Colour> colourVec) {
 	ifstream file(fileName);
 	string line;
 	vector<ModelTriangle> v;
 	vector<glm::vec3> currentVectors;
 	vector<glm::vec3> currentNormals;
+	Colour colour;
 	while (!file.eof()) {
 		getline(file, line);
 		vector<string> currentLine = split(line, ' ');
 		if (line[0] == 'v' && (line[1] != 't' && line[1] != 'n')) {
 			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
 			currentVectors.push_back(lineVector);
+		} 	if (line[0] == 'u') {
+			colour = getColour(currentLine[1], colourVec);
 		}
 		else if (line[0] == 'v' && line[1] == 'n') {
 			glm::vec3 lineVector(stof(currentLine[1]) * scalingFactor, stof(currentLine[2]) * scalingFactor, stof(currentLine[3]) * scalingFactor);
@@ -117,7 +120,7 @@ vector<ModelTriangle> unloadSphere(string fileName, float scalingFactor, Colour 
 			// calculates normal of triangle from 2 edges
 			currentTriangle.normal = glm::cross(currentTriangle.vertices[1] - currentTriangle.vertices[0], currentTriangle.vertices[2] - currentTriangle.vertices[0]);
 			currentTriangle.colour = colour;
-			currentTriangle.vertex_normals = { currentNormals[lineVector[0] - 1], currentNormals[lineVector[1] - 1], currentNormals[lineVector[2] - 1] };
+			if (currentNormals.size() > 0) currentTriangle.vertex_normals = {currentNormals[lineVector[0] - 1], currentNormals[lineVector[1] - 1], currentNormals[lineVector[2] - 1]};
 			v.push_back(currentTriangle);
 		}
 	}

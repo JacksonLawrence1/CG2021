@@ -180,11 +180,11 @@ void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<s
 
 		if (rowPixels < 0) {
 			rowPixels = abs(rowPixels);
-			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+			vector<vector<float>> textureScaled = interpolateCoordinates(t0, t1, rowPixels);
 
 			for (int x = 0; x < rowPixels; x++) {
-				int a = round(scaleTexture[x][0]);
-				int b = round(scaleTexture[x][1]);
+				int a = round(textureScaled[x][0]);
+				int b = round(textureScaled[x][1]);
 
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] - x;
@@ -193,11 +193,11 @@ void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<s
 			}
 		}
 		else {
-			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+			vector<vector<float>> textureScaled = interpolateCoordinates(t0, t1, rowPixels);
 
 			for (int x = 0; x < rowPixels; x++) {
-				int a = round(scaleTexture[x][0]);
-				int b = round(scaleTexture[x][1]);
+				int a = round(textureScaled[x][0]);
+				int b = round(textureScaled[x][1]);
 
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] + x;
@@ -229,10 +229,10 @@ void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<v
 
 		if (rowPixels < 0) {
 			rowPixels = abs(rowPixels);
-			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+			vector<vector<float>> textureScaled = interpolateCoordinates(t0, t1, rowPixels);
 			for (int x = 0; x < rowPixels; x++) {
-				int a = round(scaleTexture[x][0]);
-				int b = round(scaleTexture[x][1]);
+				int a = round(textureScaled[x][0]);
+				int b = round(textureScaled[x][1]);
 
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] - x;
@@ -241,10 +241,10 @@ void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<v
 			}
 		}
 		else {
-			vector<vector<float>> scaleTexture = interpolateCoordinates(t0, t1, rowPixels);
+			vector<vector<float>> textureScaled = interpolateCoordinates(t0, t1, rowPixels);
 			for (int x = 0; x < rowPixels; x++) {
-				int a = round(scaleTexture[x][0]);
-				int b = round(scaleTexture[x][1]);
+				int a = round(textureScaled[x][0]);
+				int b = round(textureScaled[x][1]);
 
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] + x;
@@ -314,7 +314,7 @@ void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangle
 			drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 		}
 		else if (triangles[i].colour.texture == true) {
-			TextureMap texture = TextureMap("texture.ppm");
+			TextureMap texture = TextureMap("checkerboard.ppm");
 			pos0.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[0]);
 			pos1.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[1]);
 			pos2.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[2]);
