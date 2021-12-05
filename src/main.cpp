@@ -30,18 +30,18 @@ using namespace glm;
 vec3 cameraPos(0.0, 0.0, 4.0);
 float focalLength = 2;
 int renderMode = 2;
-int lightingMode = 2;
+int lightingMode = 3;
 float scaleFactor = 350;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
-vec3 light(0.0, 0.4, 0.4);
+vec3 light(0.0, 0.2, 0.3);
 //vec3 light(0.0, 0.4, 0.2);
 
 vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
 vector<ModelTriangle> triangles = unloadNewFile("cornell-box.obj", 0.17, c);
-//vector<ModelTriangle> sphere = unloadSphere("sphere.obj", 0.17, Colour(255, 0, 0));
+//vector<ModelTriangle> sphere = unloadNewFile("sphere.obj", 0.17, c);
 
 
 // draws relevant items on screen

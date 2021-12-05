@@ -62,8 +62,9 @@ float allLighting(RayTriangleIntersection surface, vec3 cameraPos, vector<ModelT
 }
 
 vec3 vectorOfRecflection(RayTriangleIntersection surface, vec3 Ri) {
-	vec3 normal = surface.intersectedTriangle.normal;
-	return normalize(Ri - (2.0f * normal * dot(Ri, normal)));
+	vec3 N = normalize(surface.intersectedTriangle.normal);
+	vec3 Rr = normalize(Ri - (N * 2.0f * dot(Ri, N)));
+	return Rr;
 }
 
 Colour calculateBrightness(RayTriangleIntersection surface, float brightness, bool ambiance = true) {

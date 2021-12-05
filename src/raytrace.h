@@ -31,7 +31,7 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 				currentClosest.v = v;
 
 				Colour c = currentClosest.intersectedTriangle.colour;
-				if (c.blue == 255 && c.green == 0 && c.red == 0) currentClosest.material = 1;
+				if (c.name == "Blue") currentClosest.material = 1;
 				else currentClosest.material = 0;
 			}
 		}
@@ -60,8 +60,8 @@ void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles
 
 			if (closestIntersection.material == 1) {
 				vec3 toLight = normalize(light - closestIntersection.intersectionPoint);
-				vec3 reflection = normalize(-vectorOfRecflection(closestIntersection, toLight));
-				RayTriangleIntersection newColour = getClosestIntersection(closestIntersection.intersectionPoint, reflection, triangles);
+				vec3 reflection = -vectorOfRecflection(closestIntersection, toLight);
+				RayTriangleIntersection newColour = getClosestIntersection(closestIntersection.intersectionPoint, reflection, triangles, closestIntersection.triangleIndex);
 				closestIntersection.intersectedTriangle.colour = newColour.intersectedTriangle.colour;
 			}
 
