@@ -69,15 +69,14 @@ vec3 vectorOfRecflection(RayTriangleIntersection surface, vec3 iv) {
 }
 
 vec3 vectorOfRefraction(RayTriangleIntersection surface, vec3 iv, float ri1, float ri2) {
+	// with help from scratch a pixel
 	vec3 normal = normalize(surface.intersectedTriangle.normal);
-	float ratio = ri1 / ri2;
-
-	float NdotI = dot(normal, iv);
+	float cosi = clamp(dot(iv, normal), -1.0f, 1.0f);
 
 	// going into surface
-	if (NdotI < 0) return (ratio * iv) - (ratio * -NdotI) * normal;
+	if (cosi < 0) return (ri1/ri2 * iv) - (ri1/ri2 * -cosi) * normal;
 	// coming out of surface
-	else return (ri2/ri1 * iv) - (ri2/ri1 * NdotI) * -normal;
+	else return (ri2 / ri1 * iv) - (ri2 / ri1 * cosi) * -normal;
 }
 
 // purely changes triangle colour to closest triangle to reflected ray
@@ -98,7 +97,7 @@ RayTriangleIntersection checkMirror(RayTriangleIntersection surface, vector<Mode
 	} // refractive surface
 	else if (surface.intersectedTriangle.material == 3) {
 		reflectivity = 0.1;
-		vec3 refraction = -vectorOfRefraction(surface, toLight, 1.125, 1.0);
+		vec3 refraction = -vectorOfRefraction(surface, toLight, 1.5, 1.0);
 		newColour = getClosestIntersection(surface.intersectionPoint, refraction, triangles, surface.triangleIndex, 3).intersectedTriangle.colour;
 
 		vec3 reflection = -vectorOfRecflection(surface, toLight);
