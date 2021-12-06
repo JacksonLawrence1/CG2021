@@ -1,7 +1,9 @@
 using namespace std;
 using namespace glm;
 
-RayTriangleIntersection getClosestIntersection(vec3 source, vec3 rayDirection, vector<ModelTriangle> triangles, int triangleIndex);
+
+RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, vector<ModelTriangle> triangles, int triangleIndex, int material);
+
 
 // returns black if surface cannot see light
 float hardShadowLighting(RayTriangleIntersection surface, vector<ModelTriangle> triangles, vec3 light) {
@@ -11,7 +13,7 @@ float hardShadowLighting(RayTriangleIntersection surface, vector<ModelTriangle> 
 	vec3 normalizedIntersection = normalize(surface.intersectionPoint);
 
 	// find closest intersection between light source
-	RayTriangleIntersection shadowRay = getClosestIntersection(surface.intersectionPoint, rayShadowDirection, triangles, surface.triangleIndex);
+	RayTriangleIntersection shadowRay = getClosestIntersection(surface.intersectionPoint, rayShadowDirection, triangles, surface.triangleIndex, -1);
 	float distanceToIntersection = distance(normalize(shadowRay.intersectionPoint), normalizedIntersection);
 	float distanceToLight = distance(light, normalizedIntersection);
 
@@ -61,10 +63,59 @@ float allLighting(RayTriangleIntersection surface, vec3 cameraPos, vector<ModelT
 	else return diffuse;
 }
 
-vec3 vectorOfRecflection(RayTriangleIntersection surface, vec3 Ri) {
-	vec3 N = normalize(surface.intersectedTriangle.normal);
-	vec3 Rr = normalize(Ri - (N * 2.0f * dot(Ri, N)));
-	return Rr;
+vec3 vectorOfRecflection(RayTriangleIntersection surface, vec3 iv) {
+	vec3 normal = normalize(surface.intersectedTriangle.normal);
+	return normalize(iv - (normal * 2.0f * dot(iv, normal)));
+}
+
+vec3 vectorOfRefraction(RayTriangleIntersection surface, vec3 iv, float ri1, float ri2) {
+	vec3 normal = normalize(surface.intersectedTriangle.normal);
+	float ratio = ri1 / ri2;
+
+	float NdotI = dot(normal, iv);
+
+	// going into surface
+	if (NdotI < 0) return (ratio * iv) - (ratio * -NdotI) * normal;
+	// coming out of surface
+	else return (ri2/ri1 * iv) - (ri2/ri1 * NdotI) * -normal;
+}
+
+// purely changes triangle colour to closest triangle to reflected ray
+RayTriangleIntersection checkMirror(RayTriangleIntersection surface, vector<ModelTriangle> triangles, vec3 light) {
+	// simple mirror surface reflecting everything perfectly
+	vec3 toLight = normalize(light - surface.intersectionPoint);
+	float reflectivity = 1;
+	Colour newColour = Colour(255, 255, 255);
+	if (surface.intersectedTriangle.material == 1) {
+		vec3 reflection = -vectorOfRecflection(surface, toLight);
+		newColour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, -1).intersectedTriangle.colour;
+	} 
+	// blend colours to express metallic surface
+	else if (surface.intersectedTriangle.material == 2) {
+		float reflectivity = 0.75;
+		vec3 reflection = -vectorOfRecflection(surface, toLight);
+		newColour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, 2).intersectedTriangle.colour;
+	} // refractive surface
+	else if (surface.intersectedTriangle.material == 3) {
+		reflectivity = 0.1;
+		vec3 refraction = -vectorOfRefraction(surface, toLight, 1.125, 1.0);
+		newColour = getClosestIntersection(surface.intersectionPoint, refraction, triangles, surface.triangleIndex, 3).intersectedTriangle.colour;
+
+		vec3 reflection = -vectorOfRecflection(surface, toLight);
+		// show subtle reflection 
+		surface.intersectedTriangle.colour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, 2).intersectedTriangle.colour;
+
+	}
+	int r0 = newColour.red * (1 - reflectivity);
+	int g0 = newColour.green * (1 - reflectivity);
+	int b0 = newColour.blue * (1 - reflectivity);
+
+	int r1 = surface.intersectedTriangle.colour.red * reflectivity;
+	int g1 = surface.intersectedTriangle.colour.green * reflectivity;
+	int b1 = surface.intersectedTriangle.colour.blue * reflectivity;
+
+	surface.intersectedTriangle.colour = Colour(r0 + r1, g0 + g1, b0 + b1);
+	return surface;
 }
 
 Colour calculateBrightness(RayTriangleIntersection surface, float brightness, bool ambiance = true) {

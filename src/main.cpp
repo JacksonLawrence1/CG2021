@@ -36,7 +36,7 @@ glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
-vec3 light(0.0, 0.2, 0.3);
+vec3 light(0.0, 0.2, 0.2);
 //vec3 light(0.0, 0.4, 0.2);
 
 vector<Colour> c = unloadMaterialFile("cornell-box.mtl");

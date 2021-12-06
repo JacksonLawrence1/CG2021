@@ -5,7 +5,7 @@ using namespace glm;
 #define HEIGHT 240
 
 // Finds closest triangle that intersects 
-RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, vector<ModelTriangle> triangles, int triangleIndex = -1) {
+RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, vector<ModelTriangle> triangles, int triangleIndex = -1, int material=-1) {
 	RayTriangleIntersection currentClosest;
 	currentClosest.distanceFromCamera = numeric_limits<float>::max();
 
@@ -22,7 +22,7 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 
 		if ((u >= 0.0) && (u <= 1.0) && (v >= 0.0) && (v <= 1.0) && (u + v) <= 1.0) {
 			// skips checking for triangle i if triangleIndex is specified
-			if (t < currentClosest.distanceFromCamera && t > 0 && triangleIndex != i) {
+			if (t < currentClosest.distanceFromCamera && t > 0 && triangleIndex != i && triangles[i].material != material) {
 				currentClosest.distanceFromCamera = t;
 				currentClosest.intersectedTriangle = triangles[i];
 				currentClosest.triangleIndex = i;
@@ -30,9 +30,6 @@ RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDi
 				currentClosest.u = u;
 				currentClosest.v = v;
 
-				Colour c = currentClosest.intersectedTriangle.colour;
-				if (c.name == "Blue") currentClosest.material = 1;
-				else currentClosest.material = 0;
 			}
 		}
 	}
@@ -56,14 +53,7 @@ void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles
 
 			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection, triangles);
 
-			Colour c = closestIntersection.intersectedTriangle.colour;
-
-			if (closestIntersection.material == 1) {
-				vec3 toLight = normalize(light - closestIntersection.intersectionPoint);
-				vec3 reflection = -vectorOfRecflection(closestIntersection, toLight);
-				RayTriangleIntersection newColour = getClosestIntersection(closestIntersection.intersectionPoint, reflection, triangles, closestIntersection.triangleIndex);
-				closestIntersection.intersectedTriangle.colour = newColour.intersectedTriangle.colour;
-			}
+			closestIntersection = checkMirror(closestIntersection, triangles, light);
 
 			float brightness = 1;
 

@@ -120,6 +120,10 @@ vector<ModelTriangle> unloadNewFile(string fileName, float scalingFactor, vector
 			// calculates normal of triangle from 2 edges
 			currentTriangle.normal = glm::cross(currentTriangle.vertices[1] - currentTriangle.vertices[0], currentTriangle.vertices[2] - currentTriangle.vertices[0]);
 			currentTriangle.colour = colour;
+			if (colour.name == "Blue") {
+				currentTriangle.material = 3;
+			}
+
 			if (currentNormals.size() > 0) currentTriangle.vertex_normals = {currentNormals[lineVector[0] - 1], currentNormals[lineVector[1] - 1], currentNormals[lineVector[2] - 1]};
 			v.push_back(currentTriangle);
 		}
