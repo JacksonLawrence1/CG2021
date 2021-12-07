@@ -3,6 +3,10 @@ using namespace glm;
 
 // Convert a colour to uint32_t
 uint32_t convertColour(Colour colour) {
+	if (colour.red > 255) colour.red = 255;
+	if (colour.green > 255) colour.green = 255;
+	if (colour.blue > 255) colour.blue = 255;
+
 	uint32_t c = (255 << 24) + (colour.red << 16) + (colour.green << 8) + colour.blue;
 	return c;
 }

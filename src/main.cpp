@@ -21,21 +21,25 @@
 #include <readFile.h>
 #include <wireframe.h>
 
+#include <glm/gtx/string_cast.hpp>
+
 using namespace std;
 using namespace glm;
 
-#define WIDTH 100
-#define HEIGHT 100
+#define WIDTH 640
+#define HEIGHT 480
 
-vec3 cameraPos(0.0, 0.0, 4.0);
+//vec3 cameraPos(0.0, 0.0, 4.0);
+
+vec3 cameraPos(0, 0, 4.0);
+
 float focalLength = 2;
 int renderMode = 2;
 int lightingMode = 3;
-float scaleFactor = 150;
-glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
-							0.0, 1.0, 0.0,
-							0.0, 0.0, 1.0);
-bool orbit = false;
+float scaleFactor = 500;
+mat3 cameraOrientation(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
+
+bool orbit = true;
 vec3 light(0.0, 0.0, 1.0);
 //vec3 light(0.0, 0.4, 0.2);
 
@@ -50,6 +54,8 @@ void draw(DrawingWindow& window) {
 	if (orbit) {
 		cameraPos = cameraPos * rotateMatrixY(0.05);
 		cameraOrientation = lookat(cameraPos);
+		cout << "CameraPos: " << cameraPos.x << " " << cameraPos.y << " " << cameraPos.z << endl;
+		cout << "CameraOrientation" << glm::to_string(cameraOrientation) << endl;
 	}
 
 	if (renderMode == 0) renderWireFrame(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
@@ -61,10 +67,14 @@ void draw(DrawingWindow& window) {
 // handles keypresses to do certain events
 void handleEvent(SDL_Event event, DrawingWindow& window) {
 	if (event.type == SDL_KEYDOWN) {
+		cout << "CameraPos: " << cameraPos.x << " " << cameraPos.y << " " << cameraPos.z << endl;
+		cout << "CameraOrientation" << glm::to_string(cameraOrientation) << endl;
+
+
 		if (event.key.keysym.sym == SDLK_LEFT) cameraOrientation = cameraOrientation * rotateMatrixY(0.05);
 		else if (event.key.keysym.sym == SDLK_RIGHT) cameraOrientation = cameraOrientation * rotateMatrixY(-0.05);
-		else if (event.key.keysym.sym == SDLK_UP) cameraOrientation = cameraOrientation * rotateMatrixX(0.05);
-		else if (event.key.keysym.sym == SDLK_DOWN) cameraOrientation = cameraOrientation * rotateMatrixX(-0.05);
+		else if (event.key.keysym.sym == SDLK_UP) cameraOrientation = cameraOrientation * rotateMatrixX(-0.05);
+		else if (event.key.keysym.sym == SDLK_DOWN) cameraOrientation = cameraOrientation * rotateMatrixX(0.05);
 
 		else if (event.key.keysym.sym == SDLK_PAGEUP) light.y = light.y + 0.05;
 		else if (event.key.keysym.sym == SDLK_PAGEDOWN) light.y = light.y - 0.05;
@@ -107,14 +117,21 @@ int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-	//renderRayTracedScene(window, sphere, cameraPos, cameraOrientation, light, lightingMode, focalLength, scaleFactor);
+	// raytraced render
+	cameraOrientation = mat3(0.581683, 0.0, -0.813416, -0.0, 1.0, 0.0, 0.813416, 0.0, 0.581683);
+	cameraPos = vec3(-3.25366, 0, 2.32673);
+	int counter = 0;
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
-		draw(window);
-
+		while (cameraPos.x < 3.26) {
+			draw(window);
+			string name = string("images/i") + to_string(counter) + ".bmp";
+			window.saveBMP(name);
+			counter += 1;
+		}
 
 		window.renderFrame();
 	}

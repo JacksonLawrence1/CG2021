@@ -2,7 +2,7 @@ using namespace std;
 using namespace glm;
 
 #define WIDTH 100
-#define HEIGHT 100
+#define HEIGHT 75
 
 uint32_t convertColour(Colour colour);
 vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
