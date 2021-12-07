@@ -1,8 +1,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 100
+#define HEIGHT 100
 
 uint32_t convertColour(Colour colour);
 vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
@@ -314,7 +314,7 @@ void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangle
 			drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 		}
 		else if (triangles[i].colour.texture == true) {
-			TextureMap texture = TextureMap("checkerboard.ppm");
+			TextureMap texture = TextureMap("texture.ppm");
 			pos0.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[0]);
 			pos1.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[1]);
 			pos2.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[2]);

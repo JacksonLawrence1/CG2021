@@ -36,10 +36,11 @@ float diffuseLighting(RayTriangleIntersection surface, vec3 light) {
 	float brightness = proximityLighting(surface, light);
 
 	// find angle of incidence in accordance to light
-	vec3 toLight = light - surface.intersectionPoint;
+	vec3 toLight = normalize(light - surface.intersectionPoint);
 	float angleOfIncidence = dot(normalize(surface.intersectedTriangle.normal), toLight);
-	if (angleOfIncidence < 0) angleOfIncidence = 0;
-	return brightness * (angleOfIncidence * 1.7);
+
+	if (angleOfIncidence > 0) return brightness * angleOfIncidence;
+	else return 0;
 }
 
 // specularly illuminated surface
@@ -54,11 +55,11 @@ float specularLighting(RayTriangleIntersection surface, vec3 cameraPos, vec3 lig
 }
 
 float allLighting(RayTriangleIntersection surface, vec3 cameraPos, vector<ModelTriangle> triangles, vec3 light) {
-	//float shadow = hardShadowLighting(surface, triangles, light);
+	float shadow = hardShadowLighting(surface, triangles, light);
 	float diffuse = diffuseLighting(surface, light);
 	float spec = specularLighting(surface, cameraPos, light, 16);
 
-	//if (shadow < diffuse) return shadow;
+	if (shadow < diffuse) return shadow;
 	if (spec > diffuse) return spec;
 	else return diffuse;
 }
@@ -83,35 +84,35 @@ vec3 vectorOfRefraction(RayTriangleIntersection surface, vec3 iv, float ri1, flo
 RayTriangleIntersection checkMirror(RayTriangleIntersection surface, vector<ModelTriangle> triangles, vec3 light) {
 	// simple mirror surface reflecting everything perfectly
 	vec3 toLight = normalize(light - surface.intersectionPoint);
-	float reflectivity = 1;
+	float reflectivity = 0;
 	Colour newColour = Colour(255, 255, 255);
+	vec3 reflection = -vectorOfRecflection(surface, toLight);
+	// mirror reflecting everything
 	if (surface.intersectedTriangle.material == 1) {
-		vec3 reflection = -vectorOfRecflection(surface, toLight);
+		reflectivity = 1;
 		newColour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, -1).intersectedTriangle.colour;
 	} 
-	// blend colours to express metallic surface
+	// metallic surface
 	else if (surface.intersectedTriangle.material == 2) {
-		float reflectivity = 0.75;
-		vec3 reflection = -vectorOfRecflection(surface, toLight);
-		newColour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, 2).intersectedTriangle.colour;
-	} // refractive surface
+		reflectivity = 0.25;
+		newColour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, -1).intersectedTriangle.colour;
+	} // refractive surface (glass with RI 1.5)
 	else if (surface.intersectedTriangle.material == 3) {
-		reflectivity = 0.1;
+		reflectivity = 0.75;
 		vec3 refraction = -vectorOfRefraction(surface, toLight, 1.5, 1.0);
 		newColour = getClosestIntersection(surface.intersectionPoint, refraction, triangles, surface.triangleIndex, 3).intersectedTriangle.colour;
 
-		vec3 reflection = -vectorOfRecflection(surface, toLight);
 		// show subtle reflection 
 		surface.intersectedTriangle.colour = getClosestIntersection(surface.intersectionPoint, reflection, triangles, surface.triangleIndex, 2).intersectedTriangle.colour;
 
 	}
-	int r0 = newColour.red * (1 - reflectivity);
-	int g0 = newColour.green * (1 - reflectivity);
-	int b0 = newColour.blue * (1 - reflectivity);
+	int r0 = newColour.red * reflectivity;
+	int g0 = newColour.green * reflectivity;
+	int b0 = newColour.blue * reflectivity;
 
-	int r1 = surface.intersectedTriangle.colour.red * reflectivity;
-	int g1 = surface.intersectedTriangle.colour.green * reflectivity;
-	int b1 = surface.intersectedTriangle.colour.blue * reflectivity;
+	int r1 = surface.intersectedTriangle.colour.red * (1 - reflectivity);
+	int g1 = surface.intersectedTriangle.colour.green * (1 - reflectivity);
+	int b1 = surface.intersectedTriangle.colour.blue * (1 - reflectivity);
 
 	surface.intersectedTriangle.colour = Colour(r0 + r1, g0 + g1, b0 + b1);
 	return surface;

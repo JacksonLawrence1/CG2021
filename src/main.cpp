@@ -24,25 +24,24 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 100
+#define HEIGHT 100
 
 vec3 cameraPos(0.0, 0.0, 4.0);
 float focalLength = 2;
 int renderMode = 2;
 int lightingMode = 3;
-float scaleFactor = 350;
+float scaleFactor = 150;
 glm::mat3 cameraOrientation(1.0, 0.0, 0.0,
 							0.0, 1.0, 0.0,
 							0.0, 0.0, 1.0);
 bool orbit = false;
-vec3 light(0.0, 0.2, 0.2);
+vec3 light(0.0, 0.0, 1.0);
 //vec3 light(0.0, 0.4, 0.2);
 
-vector<Colour> c = unloadMaterialFile("cornell-box.mtl");
-vector<ModelTriangle> triangles = unloadNewFile("cornell-box.obj", 0.17, c);
+vector<Colour> c = unloadMaterialFile("new-cornell-box.mtl");
+vector<ModelTriangle> triangles = unloadNewFile("new-cornell-box.obj", 0.17, c);
 //vector<ModelTriangle> sphere = unloadNewFile("sphere.obj", 0.17, c);
-
 
 // draws relevant items on screen
 void draw(DrawingWindow& window) {
@@ -56,9 +55,6 @@ void draw(DrawingWindow& window) {
 	if (renderMode == 0) renderWireFrame(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
 	if (renderMode == 1) renderRasterizedScene(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
 	if (renderMode == 2) renderRayTracedScene(window, triangles, cameraPos, cameraOrientation, light, lightingMode, focalLength, scaleFactor);
-
-	// sphere render
-	//if (renderMode == 2) renderRayTracedScene(window, sphere, cameraPos, cameraOrientation, light, lightingMode, focalLength, scaleFactor);
 
 }
 
@@ -112,12 +108,14 @@ int main(int argc, char* mrgv[]) {
 	SDL_Event event;
 
 	//renderRayTracedScene(window, sphere, cameraPos, cameraOrientation, light, lightingMode, focalLength, scaleFactor);
-	draw(window);
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
 		// Need to render the frame at the end, or nothing actually gets shown on the screen !
+		draw(window);
+
+
 		window.renderFrame();
 	}
 }

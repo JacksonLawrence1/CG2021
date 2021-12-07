@@ -93,6 +93,39 @@ vector<ModelTriangle> unloadTextureFile(string fileName, float scalingFactor, ve
 	return v;
 }
 
+vector<ModelTriangle> getVertexNormals(vector<ModelTriangle> triangles) {
+	for (int i = 0; i < triangles.size(); i++) {
+		vec3 v0 = triangles[i].vertices[0];
+		vec3 sum(0, 0, 0);
+		for (int j = 0; j < triangles.size(); j++) {
+			if (v0 == triangles[j].vertices[0] | v0 == triangles[j].vertices[1] | v0 == triangles[j].vertices[2]) {
+				sum = sum + triangles[j].normal;
+			}
+		}
+		triangles[i].vertex_normals[0] = normalize(sum);
+
+		vec3 v1 = triangles[i].vertices[1];
+		sum = vec3(0, 0, 0);
+		for (int j = 0; j < triangles.size(); j++) {
+			if (v1 == triangles[j].vertices[0] | v1 == triangles[j].vertices[1] | v1 == triangles[j].vertices[2]) {
+				sum = sum + triangles[j].normal;
+			}
+		}
+		triangles[i].vertex_normals[1] = normalize(sum);
+
+		vec3 v2 = triangles[i].vertices[2];
+		sum = vec3(0, 0, 0);
+		for (int j = 0; j < triangles.size(); j++) {
+			if (v2 == triangles[j].vertices[0] | v2 == triangles[j].vertices[1] | v2 == triangles[j].vertices[2]) {
+				sum = sum + triangles[j].normal;
+			}
+		}
+		triangles[i].vertex_normals[2] = normalize(sum);
+	}
+	return triangles;
+}
+
+
 vector<ModelTriangle> unloadNewFile(string fileName, float scalingFactor, vector<Colour> colourVec) {
 	ifstream file(fileName);
 	string line;
@@ -120,7 +153,10 @@ vector<ModelTriangle> unloadNewFile(string fileName, float scalingFactor, vector
 			// calculates normal of triangle from 2 edges
 			currentTriangle.normal = glm::cross(currentTriangle.vertices[1] - currentTriangle.vertices[0], currentTriangle.vertices[2] - currentTriangle.vertices[0]);
 			currentTriangle.colour = colour;
-			if (colour.name == "Blue") {
+			if (colour.name == "Grey") {
+				currentTriangle.material = 2;
+			}
+			if (colour.name == "Orange") {
 				currentTriangle.material = 3;
 			}
 
@@ -128,7 +164,7 @@ vector<ModelTriangle> unloadNewFile(string fileName, float scalingFactor, vector
 			v.push_back(currentTriangle);
 		}
 	}
-	return v;
+	return getVertexNormals(v);
 }
 
 // Unloads a .mtl file and stores the relevant colours in a vector

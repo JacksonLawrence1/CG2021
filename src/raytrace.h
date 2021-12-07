@@ -1,8 +1,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 100
+#define HEIGHT 100
 
 // Finds closest triangle that intersects 
 RayTriangleIntersection getClosestIntersection(glm::vec3 source, glm::vec3 rayDirection, vector<ModelTriangle> triangles, int triangleIndex = -1, int material=-1) {
@@ -52,9 +52,7 @@ void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles
 			rayDirection = rayDirection * cameraOrientation;
 
 			RayTriangleIntersection closestIntersection = getClosestIntersection(cameraPos, rayDirection, triangles);
-
-			closestIntersection = checkMirror(closestIntersection, triangles, light);
-
+			
 			float brightness = 1;
 
 			// Colours hard shadows black
@@ -70,7 +68,9 @@ void renderRayTracedScene(DrawingWindow& window, vector<ModelTriangle> triangles
 			if (lightingMode == 4) brightness = gouraudShade(closestIntersection, cameraPos, light);
 
 			// OPTIONAL :: add hard shadow
-			if (lightingMode == 5) brightness = phongShade(closestIntersection, cameraPos, light);
+			if (closestIntersection.intersectedTriangle.colour.name == "Red") brightness = phongShade(closestIntersection, cameraPos, light);
+
+			closestIntersection = checkMirror(closestIntersection, triangles, light);
 
 			window.setPixelColour(x, y, convertColour(calculateBrightness(closestIntersection, brightness, true)));
 
