@@ -1,8 +1,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 640
+#define HEIGHT 480
 
 // Draws a line from point a to b
 void drawLine(DrawingWindow& window, CanvasPoint to, CanvasPoint from, uint32_t colour = convertColour(Colour(255, 255, 255))) {

@@ -15,10 +15,13 @@ glm::mat3 rotateMatrixY(float angle) {
 	return rotation;
 }
 
-glm::mat3 lookat(glm::vec3 cameraPos, glm::vec3 target = glm::vec3(0, 0, 0)) {
+glm::mat3 lookat(glm::vec3 cameraPos, glm::vec3 target = glm::vec3(0.25, 0.25, 0)) {
 	glm::vec3 forward = normalize(cameraPos - target);
 	glm::vec3 right = normalize((glm::cross(glm::vec3(0, 1, 0), forward)));
 	glm::vec3 up = cross(forward, right);
 	glm::mat3 newOrientation(right, up, forward);
-	return transpose(newOrientation);
+
+	// when raytracing must return transpose!
+	// return transpose(newOrientation);
+	return newOrientation;
 }

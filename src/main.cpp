@@ -12,7 +12,6 @@
 #include <ModelTriangle.h>
 #include <RayTriangleIntersection.h>
 
-
 #include <camera.h>
 #include <interpolate.h>
 #include <lighting.h>
@@ -21,31 +20,33 @@
 #include <readFile.h>
 #include <wireframe.h>
 
-#include <glm/gtx/string_cast.hpp>
-
 using namespace std;
 using namespace glm;
 
 #define WIDTH 640
 #define HEIGHT 480
 
-//vec3 cameraPos(0.0, 0.0, 4.0);
 
-vec3 cameraPos(0, 0, 4.0);
+vec3 cameraPos(0, 0.25, 4.0);
 
 float focalLength = 2;
-int renderMode = 2;
+int renderMode = 0;
 int lightingMode = 3;
-float scaleFactor = 500;
+
+// use 1000 scale factor for logo
+float scaleFactor = 1500;
 mat3 cameraOrientation(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
 
-bool orbit = true;
+bool orbit = false;
 vec3 light(0.0, 0.0, 1.0);
 //vec3 light(0.0, 0.4, 0.2);
 
-vector<Colour> c = unloadMaterialFile("new-cornell-box.mtl");
-vector<ModelTriangle> triangles = unloadNewFile("new-cornell-box.obj", 0.17, c);
-//vector<ModelTriangle> sphere = unloadNewFile("sphere.obj", 0.17, c);
+//vector<Colour> c = unloadMaterialFile("new-cornell-box.mtl");
+//vector<ModelTriangle> triangles = unloadNewFile("new-cornell-box.obj", 0.17, c);
+
+vector<Colour> c = unloadMaterialFile("materials.mtl");
+vector<ModelTriangle> triangles = unloadTextureFile("logo.obj", 0.001, c);
+
 
 // draws relevant items on screen
 void draw(DrawingWindow& window) {
@@ -53,9 +54,8 @@ void draw(DrawingWindow& window) {
 
 	if (orbit) {
 		cameraPos = cameraPos * rotateMatrixY(0.05);
+		cameraPos = cameraPos * rotateMatrixX(0.05);
 		cameraOrientation = lookat(cameraPos);
-		cout << "CameraPos: " << cameraPos.x << " " << cameraPos.y << " " << cameraPos.z << endl;
-		cout << "CameraOrientation" << glm::to_string(cameraOrientation) << endl;
 	}
 
 	if (renderMode == 0) renderWireFrame(window, triangles, cameraPos, focalLength, scaleFactor, cameraOrientation);
@@ -64,12 +64,33 @@ void draw(DrawingWindow& window) {
 
 }
 
+// CAMERA MOVEMENT FOR LOGO
+int handleLogoAnimation(int move) {
+	if (cameraPos.x <= 0.25 && move == 1) {
+		renderMode = 0;
+		cameraPos.x += 0.01;
+		return 1;
+	}
+	else if (cameraPos.z > -4 && move >= 1) {
+		renderMode = 0;
+		cameraPos = cameraPos * rotateMatrixY(0.05);
+		cameraPos = cameraPos * rotateMatrixX(0.05);
+		cameraOrientation = lookat(cameraPos);
+		return 2;
+	}
+	else if (cameraPos.x >= -0.5) {
+		renderMode = 1;
+		cameraPos.x -= 0.01;
+		return 3;
+	}
+	else {
+		return 0;
+	}
+}
+
 // handles keypresses to do certain events
 void handleEvent(SDL_Event event, DrawingWindow& window) {
 	if (event.type == SDL_KEYDOWN) {
-		cout << "CameraPos: " << cameraPos.x << " " << cameraPos.y << " " << cameraPos.z << endl;
-		cout << "CameraOrientation" << glm::to_string(cameraOrientation) << endl;
-
 
 		if (event.key.keysym.sym == SDLK_LEFT) cameraOrientation = cameraOrientation * rotateMatrixY(0.05);
 		else if (event.key.keysym.sym == SDLK_RIGHT) cameraOrientation = cameraOrientation * rotateMatrixY(-0.05);
@@ -117,22 +138,28 @@ int main(int argc, char* mrgv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
 
-	// raytraced render
-	cameraOrientation = mat3(0.581683, 0.0, -0.813416, -0.0, 1.0, 0.0, 0.813416, 0.0, 0.581683);
-	cameraPos = vec3(-3.25366, 0, 2.32673);
-	int counter = 0;
+	// START POS FOR raytraced render
+	//cameraOrientation = mat3(0.581683, 0.0, -0.813416, -0.0, 1.0, 0.0, 0.813416, 0.0, 0.581683);
+	//cameraPos = vec3(-3.25366, 0, 2.32673);
+
+	// START POS FOR LOGO render
+	//vec3 cameraPos(0, 0.25, 4.0);
+
+
+	int counter = 105;
+	int move = 1;
+
 
 	while (true) {
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)) handleEvent(event, window);
-		// Need to render the frame at the end, or nothing actually gets shown on the screen !
-		while (cameraPos.x < 3.26) {
-			draw(window);
-			string name = string("images/i") + to_string(counter) + ".bmp";
-			window.saveBMP(name);
-			counter += 1;
-		}
+		draw(window);
 
+		if (move >= 1) {
+			//move = handleLogoAnimation(move);
+		} 
+
+		// Need to render the frame at the end, or nothing actually gets shown on the screen !
 		window.renderFrame();
 	}
 }

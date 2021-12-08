@@ -88,7 +88,8 @@ vector<ModelTriangle> unloadTextureFile(string fileName, float scalingFactor, ve
 				ModelTriangle currentTriangle(currentVectors[stof(lineVector[0])-1], currentVectors[stof(lineVector[2])-1], currentVectors[stof(lineVector[4])-1], colour);
 				// calculates normal of triangle from 2 edges
 				currentTriangle.normal = glm::cross(currentTriangle.vertices[1] - currentTriangle.vertices[0], currentTriangle.vertices[2] - currentTriangle.vertices[0]);
-
+				currentTriangle.colour = Colour(255, 255, 255);
+				currentTriangle.colour.texture = true;
 				currentTriangle.texturePoints = { textureVectors[stof(lineVector[1])-1], textureVectors[stof(lineVector[3])-1], textureVectors[stof(lineVector[5])-1]};
 				v.push_back(currentTriangle);
 			}
@@ -101,26 +102,27 @@ vector<ModelTriangle> getVertexNormals(vector<ModelTriangle> triangles) {
 	for (int i = 0; i < triangles.size(); i++) {
 		vec3 v0 = triangles[i].vertices[0];
 		vec3 sum(0, 0, 0);
+		// get 1st vertex normal
 		for (int j = 0; j < triangles.size(); j++) {
-			if (v0 == triangles[j].vertices[0] | v0 == triangles[j].vertices[1] | v0 == triangles[j].vertices[2]) {
+			if (v0 == triangles[j].vertices[0] || v0 == triangles[j].vertices[1] || v0 == triangles[j].vertices[2]) {
 				sum = sum + triangles[j].normal;
 			}
 		}
 		triangles[i].vertex_normals[0] = normalize(sum);
-
+		// get 2nd vertex normal
 		vec3 v1 = triangles[i].vertices[1];
 		sum = vec3(0, 0, 0);
 		for (int j = 0; j < triangles.size(); j++) {
-			if (v1 == triangles[j].vertices[0] | v1 == triangles[j].vertices[1] | v1 == triangles[j].vertices[2]) {
+			if (v1 == triangles[j].vertices[0] || v1 == triangles[j].vertices[1] || v1 == triangles[j].vertices[2]) {
 				sum = sum + triangles[j].normal;
 			}
 		}
 		triangles[i].vertex_normals[1] = normalize(sum);
-
+		// get 3rd vertex normal
 		vec3 v2 = triangles[i].vertices[2];
 		sum = vec3(0, 0, 0);
 		for (int j = 0; j < triangles.size(); j++) {
-			if (v2 == triangles[j].vertices[0] | v2 == triangles[j].vertices[1] | v2 == triangles[j].vertices[2]) {
+			if (v2 == triangles[j].vertices[0] || v2 == triangles[j].vertices[1] || v2 == triangles[j].vertices[2]) {
 				sum = sum + triangles[j].normal;
 			}
 		}
@@ -188,7 +190,12 @@ vector<Colour> unloadMaterialFile(string fileName) {
 			c.push_back(Colour(name, round(stof(currentLine[1]) * 255), round(stof(currentLine[2]) * 255), round(stof(currentLine[3]) * 255)));
 		}
 		else if (line[0] == 'm') {
-			c.back().texture = true;
+			if (c.size() == 0) {
+				Colour newColour(255, 255, 255);
+				newColour.texture = true;
+				c.push_back(newColour);
+			}
+			else c.back().texture = true;
 
 		}
 	}

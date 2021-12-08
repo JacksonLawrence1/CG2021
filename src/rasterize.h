@@ -1,8 +1,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 100
-#define HEIGHT 75
+#define WIDTH 640
+#define HEIGHT 480
 
 uint32_t convertColour(Colour colour);
 vector<std::vector<uint32_t>> unloadTexture(TextureMap texture);
@@ -171,6 +171,7 @@ void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<s
 	
 	vector<float> topToMid = interpolateSingleFloats(points[0].x, points[2].x, rows);
 	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture0, texture2, rows);
+	int textureSize = texture.size() - 1;
 
 	for (int y = 0; y < rows; y++) {
 		int rowPixels = topToMid[y] - topToBot[y];
@@ -186,6 +187,10 @@ void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<s
 				int a = round(textureScaled[x][0]);
 				int b = round(textureScaled[x][1]);
 
+
+				a = clamp(a, 0, textureSize);
+				b = clamp(b, 0, textureSize);
+
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] - x;
 				int yValue = points[0].y + y;
@@ -198,6 +203,9 @@ void drawTopTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<s
 			for (int x = 0; x < rowPixels; x++) {
 				int a = round(textureScaled[x][0]);
 				int b = round(textureScaled[x][1]);
+
+				a = clamp(a, 0, textureSize);
+				b = clamp(b, 0, textureSize);
 
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] + x;
@@ -220,6 +228,7 @@ void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<v
 
 	vector<float> topToMid = interpolateSingleFloats(points[1].x, points[2].x, rows);
 	vector<vector<float>> textureTopToMid = interpolateCoordinates(texture1, texture2, rows);
+	int textureSize = texture.size() - 1;
 
 	for (int y = 0; y < rows; y++) {
 		int rowPixels = topToMid[y] - topToBot[y];
@@ -234,6 +243,9 @@ void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<v
 				int a = round(textureScaled[x][0]);
 				int b = round(textureScaled[x][1]);
 
+				a = clamp(a, 0, textureSize);
+				b = clamp(b, 0, textureSize);
+
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] - x;
 				int yValue = points[0].y + y;
@@ -245,6 +257,9 @@ void drawBotTriangle(DrawingWindow& window, vector<CanvasPoint> points, vector<v
 			for (int x = 0; x < rowPixels; x++) {
 				int a = round(textureScaled[x][0]);
 				int b = round(textureScaled[x][1]);
+
+				a = clamp(a, 0, textureSize);
+				b = clamp(b, 0, textureSize);
 
 				uint32_t colour = texture[b][a];
 				int xValue = topToBot[y] + x;
@@ -313,8 +328,9 @@ void renderRasterizedScene(DrawingWindow& window, vector<ModelTriangle> triangle
 		if (triangles[i].colour.texture == false) {
 			drawFilledTriangle(window, CanvasTriangle(pos0, pos1, pos2), triangles[i].colour);
 		}
+		//else if (triangles[i].colour.texture == true) {
 		else if (triangles[i].colour.texture == true) {
-			TextureMap texture = TextureMap("texture.ppm");
+			TextureMap texture = TextureMap("logo_texture.ppm");
 			pos0.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[0]);
 			pos1.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[1]);
 			pos2.texturePoint = scaleTexturePoint(texture, triangles[i].texturePoints[2]);
